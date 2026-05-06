@@ -45,6 +45,7 @@ FastAPI app entry point: `backend/main.py`.
 | GET | `/api/collection/` | User-scoped collection |
 | GET | `/api/collection/user/{user_id}` | View another user's collection (read-only, auth required) |
 | POST | `/api/collection/` | Add to collection |
+| POST | `/api/collection/bulk-add` | Bulk-add selected cards; commits each item independently and reports added/updated/failed counts |
 | PUT | `/api/collection/{item_id}` | Update collection item |
 | DELETE | `/api/collection/{item_id}` | Delete collection item |
 | GET | `/api/collection/stats/summary` | Collection summary |
@@ -225,13 +226,32 @@ If `include=full`, image cache is excluded unless `images` is also explicitly in
 
 1. Gemini extracts card metadata from the uploaded photo
 2. TCGdex candidate results are ranked by recognized card number
-3. If the number is not decisive, Gemini visually compares the top candidates and picks the best match
+3. If the number is not decisive and there are enough candidates, Gemini visually compares the top candidates and picks the best match
+
+Gemini error handling:
+
+- Transient `502`, `503`, and `504` responses are retried with backoff
+- `429` is returned as a rate-limit/capacity message
+- Invalid API keys get a dedicated user-facing message
+- Temporary Gemini outages are returned clearly instead of leaking as generic backend `500` errors
+- Gemini requests send the API key via header instead of the request URL
 
 Additional matching behavior:
 
 - Name suffixes like `EX`, `GX`, `V`, `VMAX`, `VSTAR`, `TAG TEAM`, `BREAK`, and `LV.X` are stripped before search
 - Search may fall back from detected card language to English
 - Result payload includes recognized metadata and candidate matches
+
+## Bulk Collection Add
+
+`POST /api/collection/bulk-add` accepts `BulkCollectionAddRequest` with multiple `CollectionItemCreate` items and returns `BulkCollectionAddResponse`:
+
+- `added`: new collection rows created
+- `updated`: existing matching rows whose quantity was incremented
+- `failed`: items that could not be added
+- `errors`: per-card error details
+
+Each item is committed independently, so one invalid or unavailable card does not roll back the rest of the batch. Existing rows are matched by card, variant, language, and current user.
 
 ## Notifications
 

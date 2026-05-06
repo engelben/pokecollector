@@ -169,9 +169,11 @@ Current flow:
 3. Search terms are broadened by stripping suffixes such as `EX`, `GX`, `V`, `VMAX`, `VSTAR`, `TAG TEAM`, `BREAK`, and `LV.X`
 4. TCGdex search results are collected in the detected language, with English fallback when needed
 5. Results are ranked by printed card number
-6. If number ranking is not decisive, Gemini visually compares the top candidates and picks the best match
+6. If number ranking is not decisive and there are enough candidates, Gemini visually compares the top candidates and picks the best match
 
-The frontend then lets the user choose quantity, condition, variant, language, and purchase price before adding to the collection.
+Transient Gemini `502` / `503` / `504` capacity errors are retried with backoff. Gemini `429` responses are surfaced as rate-limit errors, invalid API keys get a dedicated message, and remaining temporary Gemini outages return a clearer temporary-unavailable response instead of a generic backend `500`.
+
+The frontend then lets the user choose quantity, condition, variant, language, and purchase price before adding to the collection. Search results can also be selected in bulk and added with default values in one request.
 
 ## Frontend State
 
@@ -204,6 +206,8 @@ Current frontend state layers:
 
 - Used for smart scanner recognition
 - Key is read per user from `user_settings`
+- Scanner calls use the API-key header rather than putting the key in the request URL
+- Transient capacity failures are retried; rate limits and invalid keys are reported separately
 
 ### Telegram
 
