@@ -11,7 +11,7 @@ Routes are defined in `frontend/src/App.jsx`.
 | `/login` | `pages/Login.jsx` | Multi-user login screen |
 | `/` | `pages/HomeScreen.jsx` | Portal-style home screen |
 | `/dashboard` | `pages/Dashboard.jsx` | Portfolio summary |
-| `/search` | `pages/CardSearch.jsx` | Card search and scanner entry |
+| `/search` | `pages/CardSearch.jsx` | Card search, scanner entry, and multi-select bulk add |
 | `/collection` | `pages/Collection.jsx` | User collection |
 | `/collection/user/:userId` | `pages/UserCollection.jsx` | Read-only view of another user's collection |
 | `/sets` | `pages/Sets.jsx` | Set browser |
@@ -177,6 +177,14 @@ Current behavior:
   - defaults to `Holo` when holo exists without normal or reverse
 - Shows available variants from TCGdex flags
 
+### `pages/CardSearch.jsx`
+
+- Main search UI for locally cached TCGdex cards and matched custom cards
+- Supports select mode for search results
+- Can select the current page or all matching search results
+- Bulk-add sends selected cards to `/api/collection/bulk-add` with default quantity `1`, condition `NM`, no variant, no purchase price, and the card language
+- Bulk-add success toast reports added, updated, and failed counts
+
 ### `CardScanner`
 
 Defined in `frontend/src/components/CardScanner.jsx`.
@@ -184,6 +192,7 @@ Defined in `frontend/src/components/CardScanner.jsx`.
 - Upload/camera capture flow
 - Calls `/api/cards/recognize`
 - Displays recognized matches, including rarity
+- Shows clearer scanner errors returned by the backend for Gemini rate limits, invalid keys, and temporary capacity outages
 - Lets the user add a matched card to the collection
 - Supports language selection in the add modal: `de`, `en`, `zh`
 

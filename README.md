@@ -47,8 +47,10 @@ Be kind. Be clear. Assume good intent. Keep feedback constructive.
 ### 🔍 Search & Scanning
 - Search the locally cached card database by name, set, type, rarity, HP, artist, and more
 - Short-code search like `PFL 001`
+- Multi-select search results and bulk-add matching cards to the collection
 - Smart scanner with Gemini-powered recognition
-- Two-step scanner matching: number ranking first, visual verification second
+- Scanner retries transient Gemini capacity errors and shows clearer rate-limit / temporary-unavailable messages
+- Two-step scanner matching: number ranking first, visual verification second when useful
 - Scanner strips suffixes like `ex` / `GX` / `VSTAR` for broader matching
 - Card modal auto-preselects a likely variant from TCGdex variant flags
 
