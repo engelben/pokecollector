@@ -113,6 +113,7 @@ def get_settings(db: Session = Depends(get_db), current_user: User = Depends(get
 
 @router.put("/")
 def update_settings(data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    pending_side_effects = []
     for key, value in data.items():
         coerced_value = _coerce_setting_value(key, value)
         if key in ADMIN_ONLY_KEYS:
@@ -123,7 +124,7 @@ def update_settings(data: dict, db: Session = Depends(get_db), current_user: Use
                 row.value = coerced_value
             else:
                 db.add(Setting(key=key, value=coerced_value))
-            _apply_setting_side_effect(key, coerced_value)
+            pending_side_effects.append((key, coerced_value))
         else:
             row = db.query(UserSetting).filter(
                 UserSetting.user_id == current_user.id, UserSetting.key == key
@@ -133,6 +134,8 @@ def update_settings(data: dict, db: Session = Depends(get_db), current_user: Use
             else:
                 db.add(UserSetting(user_id=current_user.id, key=key, value=coerced_value))
     db.commit()
+    for key, value in pending_side_effects:
+        _apply_setting_side_effect(key, value)
     return _get_user_settings(db, current_user.id)
 
 
@@ -145,6 +148,11 @@ def download_debug_log(current_user: User = Depends(get_current_user)):
         path,
         filename="pokecollector-debug.log",
         media_type="text/plain; charset=utf-8",
+        headers={
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
     )
 
 
@@ -179,7 +187,7 @@ def set_setting(key: str, body: dict, db: Session = Depends(get_db), current_use
             row.value = value
         else:
             db.add(Setting(key=key, value=value))
-        _apply_setting_side_effect(key, value)
+        pending_side_effect = (key, value)
     else:
         row = db.query(UserSetting).filter(
             UserSetting.user_id == current_user.id, UserSetting.key == key
@@ -189,4 +197,6 @@ def set_setting(key: str, body: dict, db: Session = Depends(get_db), current_use
         else:
             db.add(UserSetting(user_id=current_user.id, key=key, value=value))
     db.commit()
+    if key in ADMIN_ONLY_KEYS:
+        _apply_setting_side_effect(*pending_side_effect)
     return {"key": key, "value": value}
