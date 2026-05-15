@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.responses import RedirectResponse
 import httpx
 from sqlalchemy.orm import Session
 
@@ -26,21 +27,10 @@ def _other_lang(lang: str | None) -> str | None:
 
 
 def _card_back_response():
-    svg = b'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 350">
-<defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#1e3a8a"/><stop offset="1" stop-color="#111827"/></linearGradient></defs>
-<rect width="250" height="350" rx="18" fill="url(#g)"/>
-<rect x="14" y="14" width="222" height="322" rx="14" fill="none" stroke="#f8fafc" stroke-width="8" opacity=".85"/>
-<circle cx="125" cy="175" r="54" fill="#f8fafc" opacity=".95"/>
-<circle cx="125" cy="175" r="22" fill="#111827"/>
-<path d="M35 175h180" stroke="#111827" stroke-width="14"/>
-<text x="125" y="62" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" font-weight="700" fill="#f8fafc">POKEMON</text>
-<text x="125" y="302" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#f8fafc">NO IMAGE</text>
-</svg>'''
-    return Response(
-        content=svg,
-        media_type="image/svg+xml",
-        headers={"Cache-Control": "public, max-age=86400"},
-    )
+    # Keep using the frontend's existing placeholder artwork. The backend only
+    # changes the missing-image response behavior; it must not replace the
+    # placeholder image data/design.
+    return RedirectResponse(url="/cardback.jpg", status_code=307)
 
 
 def _get_or_fetch(db: Session, key: str, url: str) -> tuple[bytes, str]:
