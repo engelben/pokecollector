@@ -292,7 +292,7 @@ export default function Sets() {
                       loading="lazy"
                     />
                   ) : (
-                    <img src="/pokeball.svg" className="w-12 h-12 opacity-20 relative z-10" alt="" />
+                    <img src="/pokemon-logo.svg" className="w-28 h-12 object-contain opacity-40 relative z-10" alt="" />
                   )}
 
                   {pct === 100 && (

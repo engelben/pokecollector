@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 import httpx
+from pathlib import Path
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -9,6 +10,7 @@ from models import Card, ImageCache, Set, Setting
 router = APIRouter()
 
 _client = httpx.Client(timeout=15, follow_redirects=True)
+_SET_FALLBACK_IMAGE = Path(__file__).resolve().parents[1] / "static" / "pokemon-logo.svg"
 
 
 def _setting_enabled(db: Session, key: str, default: bool = True) -> bool:
@@ -31,6 +33,17 @@ def _card_back_response():
     # changes the missing-image response behavior; it must not replace the
     # placeholder image data/design.
     return RedirectResponse(url="/cardback.jpg", status_code=307)
+
+
+def _set_fallback_response():
+    # Serve a bundled Pokémon-style wordmark when TCGdex has no set logo/symbol
+    # or the upstream image cannot be fetched. Serving it from the API keeps the
+    # fallback independent from frontend static-asset routing.
+    return FileResponse(
+        _SET_FALLBACK_IMAGE,
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 def _get_or_fetch(db: Session, key: str, url: str) -> tuple[bytes, str]:
@@ -108,12 +121,14 @@ def get_set_image(set_id: str, image_type: str, db: Session = Depends(get_db)):
                 cache_key = f"set:{set_id}:{image_type}:fallback:{fallback_lang}"
 
     if not url:
-        raise HTTPException(status_code=404, detail="No image URL for this set")
+        return _set_fallback_response()
 
     try:
         data, content_type = _get_or_fetch(db, cache_key, url)
-    except HTTPException:
-        raise HTTPException(status_code=404, detail="No image URL for this set")
+    except HTTPException as exc:
+        if exc.status_code == 502:
+            return _set_fallback_response()
+        raise
     return Response(
         content=data,
         media_type=content_type,
