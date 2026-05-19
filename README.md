@@ -30,6 +30,7 @@ Be kind. Be clear. Assume good intent. Keep feedback constructive.
 - [Documentation](#-documentation)
 - [Configuration Reference](#-configuration-reference)
 - [Updating](#-updating)
+- [Community Projects](#-community-projects)
 - [Support](#-support)
 - [License](#-license)
 
@@ -256,6 +257,19 @@ docker compose up -d --build
 ```
 
 Database migrations run automatically on startup.
+
+---
+
+## 🌱 Community Projects
+
+PokéCollector is not only about the app itself. It is also about the ways collectors organize and use their collections in real life.
+
+Big shoutout to [f0rr3stfunk](https://github.com/f0rr3stfunk) for detailed testing, bug reports, feedback, and for sharing a very cool storage box divider project for Pokémon card sets.
+
+The dividers include set logos and space for NFC tags, so tapping a divider with a phone can open the matching set overview in PokéCollector.
+
+Makerworld project:
+https://makerworld.com/de/models/2816777-high-dividers-with-set-logo-nfc-tag#profileId-3136169
 
 ---
 
