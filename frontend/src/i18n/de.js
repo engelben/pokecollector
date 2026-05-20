@@ -216,6 +216,8 @@ const de = {
     csvImportSectionCardCode: 'Kartencode',
     csvImportSectionColumns: 'Spalten',
     csvImportSectionValues: 'Optionale Werte',
+    csvImportRequired: 'Pflicht',
+    csvImportOptional: 'optional',
     csvImportValueHelp: 'Nutze den Code auf den Karten, z. B. „ASC 152“. Teile ihn in zwei CSV-Werte auf:',
     csvImportRequiredOptionalHint: 'Rote Spalten benötigen Werte. Graue Spalten dürfen leer bleiben und nutzen Standardwerte.',
     csvImportColumnQuantity: 'optional; Standard 1; erlaubt 1-999',

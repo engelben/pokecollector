@@ -216,6 +216,8 @@ const en = {
     csvImportSectionCardCode: 'Card code',
     csvImportSectionColumns: 'Columns',
     csvImportSectionValues: 'Optional values',
+    csvImportRequired: 'required',
+    csvImportOptional: 'optional',
     csvImportValueHelp: 'Use the code shown on cards, e.g. “ASC 152”. Split it into two CSV values:',
     csvImportRequiredOptionalHint: 'Red columns need values. Grey columns may stay empty and will use defaults.',
     csvImportColumnQuantity: 'optional; defaults to 1; allowed 1-999',

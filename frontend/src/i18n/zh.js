@@ -216,6 +216,8 @@ const zh = {
     csvImportSectionCardCode: '卡牌代码',
     csvImportSectionColumns: '列',
     csvImportSectionValues: '可选值',
+    csvImportRequired: '必填',
+    csvImportOptional: '可选',
     csvImportValueHelp: '使用卡牌上显示的代码，例如 “ASC 152”。将它拆成两个 CSV 值：',
     csvImportRequiredOptionalHint: '红色列必须填写。灰色列可以留空并使用默认值。',
     csvImportColumnQuantity: '可选；默认 1；允许 1-999',
