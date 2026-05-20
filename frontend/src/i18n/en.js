@@ -212,6 +212,7 @@ const en = {
     downloadCsvTemplateHint: 'Download a sample CSV with the required header',
     csvImportFormatTitle: 'CSV import format',
     csvImportFormatDescription: 'All columns must be present. Required values: set_code and number. Optional values may be blank: quantity defaults to 1, condition to NM, lang to en, variant and purchase_price stay empty.',
+    csvImportHeaderLabel: 'Required header',
     csvImportValueHelp: 'Use the card code shown in PokéCollector/card lists, e.g. “ASC 152”: put ASC in set_code and 152 in number. Example row:',
     csvImportAllowedValues: 'Allowed values: condition Mint/NM/LP/MP/HP · variant blank/Normal/Holo/Reverse Holo/First Edition · lang en/de.',
     csvImportErrorBehavior: 'If any row has a wrong value or an unknown card code, no cards are imported and the error message shows the affected row number.',

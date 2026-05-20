@@ -70,6 +70,77 @@ const downloadCsvImportTemplate = () => {
   URL.revokeObjectURL(url)
 }
 
+function CsvImportModal({ t, onClose, onChooseFile, onDownloadTemplate, isImporting }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm md:flex md:items-center md:justify-center md:bg-black/80"
+      onClick={onClose}
+    >
+      <div
+        className={[
+          'fixed bottom-0 left-0 right-0 rounded-t-2xl max-h-[90dvh] overflow-y-auto',
+          'bg-bg-surface border-t border-border more-sheet-enter',
+          'md:static md:rounded-2xl md:border md:max-w-lg md:w-full md:max-h-[85vh] md:animate-none',
+        ].join(' ')}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex justify-center pt-3 pb-1 md:hidden">
+          <div className="w-10 h-1 bg-border rounded-full" />
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-text-primary">{t('collection.csvImportFormatTitle')}</h2>
+              <p className="text-xs text-text-secondary mt-1">{t('collection.csvImportFormatDescription')}</p>
+            </div>
+            <button onClick={onClose} className="text-text-muted hover:text-text-primary flex-shrink-0 p-1">
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="space-y-3 text-xs text-text-secondary">
+            <div>
+              <p className="font-semibold text-text-primary mb-1">{t('collection.csvImportHeaderLabel')}</p>
+              <code className="block rounded-lg bg-bg/80 border border-border/60 px-3 py-2 overflow-x-auto text-[11px] text-text-primary">
+                {CSV_IMPORT_HEADER}
+              </code>
+            </div>
+
+            <div>
+              <p className="mb-1">{t('collection.csvImportValueHelp')}</p>
+              <code className="block rounded-lg bg-bg/80 border border-border/60 px-3 py-2 overflow-x-auto text-[11px] text-text-primary">
+                ASC,152,2,NM,,en,
+              </code>
+            </div>
+
+            <p>{t('collection.csvImportAllowedValues')}</p>
+            <p>{t('collection.csvImportErrorBehavior')}</p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onChooseFile}
+              disabled={isImporting}
+              className="btn-primary flex-1 justify-center"
+            >
+              <Upload size={16} /> {isImporting ? t('collection.importingCsv') : t('collection.importCsv')}
+            </button>
+            <button
+              type="button"
+              onClick={onDownloadTemplate}
+              className="btn-ghost justify-center"
+            >
+              <Download size={16} /> {t('collection.downloadCsvTemplate')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Holo shimmer overlay ──────────────────────────────────────────────────
 const HOLO_KEYFRAMES = `
 @keyframes holoShimmer {
@@ -433,6 +504,7 @@ export default function Collection() {
   const [filterDuplicates, setFilterDuplicates] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [showFilters, setShowFilters] = useState(false)
+  const [showCsvImportModal, setShowCsvImportModal] = useState(false)
   const csvImportInputRef = useRef(null)
   const queryClient = useQueryClient()
 
@@ -476,7 +548,10 @@ export default function Collection() {
 
   const handleCsvImport = (event) => {
     const file = event.target.files?.[0]
-    if (file) csvImportMutation.mutate(file)
+    if (file) {
+      setShowCsvImportModal(false)
+      csvImportMutation.mutate(file)
+    }
   }
 
   function getEffectivePrice(card, variant, primaryField = 'price_market') {
@@ -629,39 +704,16 @@ export default function Collection() {
             onChange={handleCsvImport}
           />
           <button
-            onClick={() => csvImportInputRef.current?.click()}
+            onClick={() => setShowCsvImportModal(true)}
             disabled={csvImportMutation.isPending}
             title={t('collection.importCsvHint')}
             className="btn-ghost text-sm py-1.5"
           >
             <Upload size={14} /> {csvImportMutation.isPending ? t('collection.importingCsv') : t('collection.importCsv')}
           </button>
-          <button
-            onClick={downloadCsvImportTemplate}
-            title={t('collection.downloadCsvTemplateHint')}
-            className="btn-ghost text-sm py-1.5"
-          >
-            <Download size={14} /> {t('collection.downloadCsvTemplate')}
-          </button>
           <button onClick={exportCSV} className="btn-ghost text-sm py-1.5"><Download size={14} />CSV</button>
           <button onClick={exportPDF} className="btn-ghost text-sm py-1.5"><Download size={14} />PDF</button>
         </div>
-      </div>
-
-      <div className="rounded-xl border border-border/70 bg-bg-elevated/40 px-4 py-3 text-xs text-text-secondary space-y-2">
-        <p>
-          <span className="font-semibold text-text-primary">{t('collection.csvImportFormatTitle')}:</span>{' '}
-          {t('collection.csvImportFormatDescription')}
-        </p>
-        <code className="block rounded-lg bg-bg/80 border border-border/60 px-3 py-2 overflow-x-auto text-[11px] text-text-primary">
-          {CSV_IMPORT_HEADER}
-        </code>
-        <p>{t('collection.csvImportValueHelp')}</p>
-        <code className="block rounded-lg bg-bg/80 border border-border/60 px-3 py-2 overflow-x-auto text-[11px] text-text-primary">
-          ASC,152,2,NM,,en,
-        </code>
-        <p>{t('collection.csvImportAllowedValues')}</p>
-        <p>{t('collection.csvImportErrorBehavior')}</p>
       </div>
 
       {/* ─── Filter & Sort Bar ────────────────────────────────────── */}
@@ -1029,6 +1081,16 @@ export default function Collection() {
       )}
 
       </div>
+
+      {showCsvImportModal && (
+        <CsvImportModal
+          t={t}
+          isImporting={csvImportMutation.isPending}
+          onClose={() => setShowCsvImportModal(false)}
+          onChooseFile={() => csvImportInputRef.current?.click()}
+          onDownloadTemplate={downloadCsvImportTemplate}
+        />
+      )}
 
       {/* ─── CollectionEditModal ──────────────────────────────────── */}
       {editingCollectionItem && (

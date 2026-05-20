@@ -212,6 +212,7 @@ const zh = {
     downloadCsvTemplateHint: '下载包含必需表头的 CSV 示例',
     csvImportFormatTitle: 'CSV 导入格式',
     csvImportFormatDescription: '所有列都必须存在。必填值：set_code 和 number。可选值可以留空：quantity 默认为 1，condition 默认为 NM，lang 默认为 en，variant 和 purchase_price 保持为空。',
+    csvImportHeaderLabel: '必需表头',
     csvImportValueHelp: '使用 PokéCollector/卡牌列表中显示的卡牌代码，例如 “ASC 152”：ASC 填入 set_code，152 填入 number。示例行：',
     csvImportAllowedValues: '允许值：condition Mint/NM/LP/MP/HP · variant 空/Normal/Holo/Reverse Holo/First Edition · lang en/de。',
     csvImportErrorBehavior: '如果任意一行包含错误值或未知卡牌代码，则不会导入任何卡牌，错误消息会显示对应行号。',
