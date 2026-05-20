@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useId } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Trash2, Check, X, Filter, SortAsc, Download, ChevronUp, ChevronDown, Search, PenLine, Grid2X2, List, Library, BookOpen, Heart } from 'lucide-react'
-import { getCollection, updateCollectionItem, removeFromCollection, exportCSV, exportPDF, getSets } from '../api/client'
+import { getCollection, updateCollectionItem, updateCardCustomImage, removeFromCollection, exportCSV, exportPDF, getSets } from '../api/client'
 import { CustomCardModal } from '../components/CardItem'
 import { useSettings } from '../contexts/SettingsContext'
 import CardImage from '../components/CardImage'
@@ -10,7 +10,7 @@ import TabNav from '../components/TabNav'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 import { useTilt } from '../hooks/useTilt'
-import { resolveCardImageUrl } from '../utils/imageUrl'
+import { cardImageUrl, resolveCardImageUrl } from '../utils/imageUrl'
 import FallbackBadges from '../components/FallbackBadges'
 
 function TiltBinderCard({ className, onClick, children }) {
@@ -146,8 +146,17 @@ function CollectionEditModal({ item, onClose }) {
   const [variant, setVariant] = useState(item.variant || '')
   const [lang, setLang] = useState(item.lang || 'en')
   const [price, setPrice] = useState(item.purchase_price ? String(item.purchase_price) : '')
+  const [customImageUrl, setCustomImageUrl] = useState(card?.custom_image_url || '')
+  const [savedCustomImageUrl, setSavedCustomImageUrl] = useState(card?.custom_image_url || '')
+  const [customImageVersion, setCustomImageVersion] = useState(0)
+  const customImageInputId = useId()
 
-  const cardImage = resolveCardImageUrl(card, 'large')
+  const hasApiImage = Boolean(card?.images?.large || card?.images_large || card?.images?.small || card?.images_small || card?.image)
+  const canEditCustomImage = card && !card.is_custom && !hasApiImage && typeof item.card_id === 'string'
+  const customImageProxyUrl = canEditCustomImage && savedCustomImageUrl
+    ? `${cardImageUrl(item.card_id, 'large')}?v=${customImageVersion}`
+    : null
+  const cardImage = customImageProxyUrl || resolveCardImageUrl(card, 'large')
 
   const updateMutation = useMutation({
     mutationFn: () => updateCollectionItem(item.id, {
@@ -175,6 +184,25 @@ function CollectionEditModal({ item, onClose }) {
       onClose()
     },
     onError: () => toast.error(t('collection.removeFailed')),
+  })
+
+  const customImageMutation = useMutation({
+    mutationFn: (url) => updateCardCustomImage(item.card_id, { custom_image_url: url || null }),
+    onSuccess: (updatedCard) => {
+      const nextUrl = updatedCard?.custom_image_url || ''
+      setCustomImageUrl(nextUrl)
+      setSavedCustomImageUrl(nextUrl)
+      setCustomImageVersion((version) => version + 1)
+      toast.success(t('card.customImageSaved'))
+      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
+      queryClient.invalidateQueries({ queryKey: ['set-checklist'] })
+    },
+    onError: (err) => {
+      const detail = err?.response?.data?.detail || t('common.error')
+      toast.error(detail)
+    },
   })
 
   const handleDelete = () => {
@@ -291,6 +319,52 @@ function CollectionEditModal({ item, onClose }) {
                 className="input"
               />
             </div>
+
+            {canEditCustomImage && (
+              <div className="bg-bg-card rounded-xl p-3 space-y-2 border border-border">
+                <div>
+                  <label htmlFor={customImageInputId} className="text-xs text-text-muted font-medium uppercase tracking-wide block">
+                    {t('card.customImageUrl')}
+                  </label>
+                  <p className="text-xs text-text-secondary mt-1">
+                    {t('card.customImageUrlDesc')}
+                  </p>
+                </div>
+                <input
+                  id={customImageInputId}
+                  type="url"
+                  placeholder="https://..."
+                  value={customImageUrl}
+                  onChange={(e) => setCustomImageUrl(e.target.value)}
+                  className="input w-full"
+                />
+                {customImageProxyUrl && (
+                  <div className="w-20 h-28 rounded overflow-hidden border border-border">
+                    <img src={customImageProxyUrl} alt="" className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => customImageMutation.mutate(customImageUrl.trim())}
+                    disabled={customImageMutation.isPending || customImageUrl.trim() === savedCustomImageUrl}
+                    className="btn-primary text-sm"
+                  >
+                    {customImageMutation.isPending ? t('common.saving') : t('card.saveCustomImage')}
+                  </button>
+                  {savedCustomImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => customImageMutation.mutate('')}
+                      disabled={customImageMutation.isPending}
+                      className="btn-ghost text-sm"
+                    >
+                      {t('card.clearCustomImage')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Actions */}
