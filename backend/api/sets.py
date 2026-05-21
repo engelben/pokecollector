@@ -194,14 +194,14 @@ def get_set_checklist(
     cards = db.query(Card).filter(
         Card.set_id == tcg_id,
         Card.lang == set_lang,
-    ).order_by(Card.number.asc()).all()
+    ).all()
 
     # If no lang-filtered cards found, check if there are cards with NULL/wrong lang
     # (pre-migration cards) and fix them
     if not cards:
         existing_cards = db.query(Card).filter(
             Card.set_id == tcg_id,
-        ).order_by(Card.number.asc()).all()
+        ).all()
         if existing_cards:
             # Update their lang to match this set
             for c in existing_cards:
@@ -227,14 +227,14 @@ def get_set_checklist(
             cards = db.query(Card).filter(
                 Card.set_id == tcg_id,
                 Card.lang == set_lang,
-            ).order_by(Card.number.asc()).all()
+            ).all()
         except Exception:
             # Last resort: return any cards for this set regardless of lang
             cards = db.query(Card).filter(
                 Card.set_id == tcg_id,
-            ).order_by(Card.number.asc()).all()
+            ).all()
 
-    cards = sorted(cards, key=lambda card: _natural_card_number_key(card.number))
+    cards.sort(key=lambda card: _natural_card_number_key(card.number))
 
     # Get owned card IDs
     owned_card_ids = {
