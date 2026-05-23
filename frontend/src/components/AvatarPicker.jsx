@@ -12,13 +12,13 @@ export default function AvatarPicker({ isOpen, onClose, onSelect, currentAvatarI
       isOpen={isOpen}
       onClose={onClose}
       title={title || t('auth.chooseAvatar')}
-      size="xl"
+      size="lg"
       mobileSheet={false}
       className="bg-bg-card"
     >
       <div className="space-y-4 p-4">
-        <div className="max-h-[70vh] overflow-y-auto rounded-2xl border border-border bg-bg-primary p-4">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div className="max-h-[70vh] overflow-y-auto rounded-2xl border border-border bg-bg-primary p-3">
+          <div className="grid grid-cols-4 gap-3 sm:grid-cols-6">
             {POKEMON_IDS.map((pokemonId) => {
               const isSelected = currentAvatarId === pokemonId
 
@@ -31,7 +31,7 @@ export default function AvatarPicker({ isOpen, onClose, onSelect, currentAvatarI
                     onClose()
                   }}
                   className={[
-                    'flex h-28 w-full items-center justify-center rounded-xl border bg-bg-card p-3 transition-transform duration-150 hover:scale-105 sm:h-32',
+                    'flex h-16 w-full items-center justify-center rounded-xl border bg-bg-card transition-transform duration-150 hover:scale-105',
                     isSelected ? 'border-brand-red ring-2 ring-brand-red/70' : 'border-border hover:border-brand-red/40',
                   ].join(' ')}
                   title={`#${pokemonId}`}
@@ -39,7 +39,7 @@ export default function AvatarPicker({ isOpen, onClose, onSelect, currentAvatarI
                   <img
                     src={`${SPRITE_BASE_URL}/${pokemonId}.gif`}
                     alt={`Pokemon ${pokemonId}`}
-                    className="max-h-20 max-w-full object-contain pixelated sm:max-h-24"
+                    className="h-12 w-12 object-contain pixelated"
                     loading="lazy"
                   />
                 </button>
