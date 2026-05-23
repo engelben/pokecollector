@@ -72,20 +72,16 @@ function BinderForm({ initial = {}, onSubmit, onCancel, loading }) {
 
       <div>
         <label className="text-xs text-text-muted mb-2 block">{t('binders.icon')}</label>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setShowIconPicker(true)}
-            className="w-16 h-16 rounded-xl border border-border bg-bg-card flex items-center justify-center hover:border-brand-red/50 transition-colors"
-          >
+        <div className="flex items-center gap-4 rounded-xl border border-border bg-bg-card p-3">
+          <div className="w-20 h-20 rounded-xl border border-border bg-bg-surface flex items-center justify-center flex-shrink-0">
             {iconPokemonId ? (
-              <img src={`${SPRITE_BASE_URL}/${iconPokemonId}.gif`} alt={`Pokemon ${iconPokemonId}`} className="h-12 w-12 pixelated" />
+              <img src={`${SPRITE_BASE_URL}/${iconPokemonId}.gif`} alt={`Pokemon ${iconPokemonId}`} className="max-h-16 max-w-16 object-contain pixelated" />
             ) : (
-              <BookOpen size={24} style={{ color }} />
+              <BookOpen size={28} style={{ color }} />
             )}
-          </button>
-          <div className="space-y-1">
-            <button type="button" onClick={() => setShowIconPicker(true)} className="btn-ghost text-sm py-1.5">
+          </div>
+          <div className="space-y-1.5 min-w-0">
+            <button type="button" onClick={() => setShowIconPicker(true)} className="btn-ghost text-sm py-1.5 px-0 justify-start">
               {t('binders.chooseIcon')}
             </button>
             {iconPokemonId && (
@@ -110,6 +106,7 @@ function BinderForm({ initial = {}, onSubmit, onCancel, loading }) {
         onClose={() => setShowIconPicker(false)}
         onSelect={(pokemonId) => setIconPokemonId(pokemonId)}
         currentAvatarId={iconPokemonId}
+        title={t('binders.chooseIcon')}
       />
     </div>
   )
@@ -212,7 +209,7 @@ export default function Binders() {
                     <div className="absolute top-0 left-0 right-0 h-1 rounded-t-xl" style={{ backgroundColor: binder.color }} />
                     <div className="pt-2">
                       {binder.icon_pokemon_id ? (
-                        <img src={`${SPRITE_BASE_URL}/${binder.icon_pokemon_id}.gif`} alt="" className="h-10 w-10 mb-2 pixelated" loading="lazy" />
+                        <img src={`${SPRITE_BASE_URL}/${binder.icon_pokemon_id}.gif`} alt="" className="max-h-10 max-w-10 object-contain mb-2 pixelated" loading="lazy" />
                       ) : isWishlist ? (
                         <Star size={32} className="mb-3" style={{ color: binder.color }} />
                       ) : (
