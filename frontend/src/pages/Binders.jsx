@@ -72,25 +72,31 @@ function BinderForm({ initial = {}, onSubmit, onCancel, loading }) {
 
       <div>
         <label className="text-xs text-text-muted mb-2 block">{t('binders.icon')}</label>
-        <div className="flex items-center gap-4 rounded-xl border border-border bg-bg-card p-3">
-          <button
-            type="button"
-            onClick={() => setShowIconPicker(true)}
-            className="w-20 h-20 rounded-xl border border-border bg-bg-surface flex items-center justify-center flex-shrink-0 hover:border-brand-red/50 transition-colors"
-            aria-label={t('binders.chooseIcon')}
-            title={t('binders.chooseIcon')}
-          >
-            {iconPokemonId ? (
-              <img src={`${SPRITE_BASE_URL}/${iconPokemonId}.gif`} alt={`Pokemon ${iconPokemonId}`} className="h-16 w-16 object-contain pixelated" />
-            ) : (
-              <BookOpen size={28} style={{ color }} />
-            )}
-          </button>
-          {iconPokemonId && (
-            <button type="button" onClick={() => setIconPokemonId(null)} className="text-xs text-text-muted hover:text-brand-red">
-              {t('binders.clearIcon')}
+        <div className="rounded-xl border border-border bg-bg-card p-4">
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setShowIconPicker(true)}
+              className="w-24 h-24 rounded-2xl border border-border bg-bg-surface flex items-center justify-center flex-shrink-0 hover:border-brand-red/50 transition-colors"
+              aria-label={t('binders.chooseIcon')}
+              title={t('binders.chooseIcon')}
+            >
+              {iconPokemonId ? (
+                <img src={`${SPRITE_BASE_URL}/${iconPokemonId}.gif`} alt={`Pokemon ${iconPokemonId}`} className="max-h-20 max-w-full object-contain pixelated" />
+              ) : (
+                <BookOpen size={32} style={{ color }} />
+              )}
             </button>
-          )}
+            <div className="min-w-0 space-y-1">
+              <p className="text-sm font-medium text-text-primary">{t('binders.chooseIcon')}</p>
+              <p className="text-xs text-text-muted">{t('binders.iconHint')}</p>
+              {iconPokemonId && (
+                <button type="button" onClick={() => setIconPokemonId(null)} className="text-xs text-text-muted hover:text-brand-red">
+                  {t('binders.clearIcon')}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
       <div className="flex gap-2">

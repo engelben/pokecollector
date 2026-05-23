@@ -354,6 +354,7 @@ const en = {
     color: 'Color',
     icon: 'Icon',
     chooseIcon: 'Choose Pokémon icon',
+    iconHint: 'Click the icon to choose a Pokémon for this binder.',
     clearIcon: 'Clear icon',
     card: 'card',
     cards: 'cards',

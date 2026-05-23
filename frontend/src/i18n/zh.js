@@ -352,6 +352,7 @@ const zh = {
     color: '颜色',
     icon: '图标',
     chooseIcon: '选择宝可梦图标',
+    iconHint: '点击图标为此活页夹选择宝可梦。',
     clearIcon: '清除图标',
     card: '张卡牌',
     cards: '张卡牌',

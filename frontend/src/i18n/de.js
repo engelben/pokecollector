@@ -354,6 +354,7 @@ const de = {
     color: 'Farbe',
     icon: 'Icon',
     chooseIcon: 'Pokémon-Icon wählen',
+    iconHint: 'Klicke auf das Icon, um ein Pokémon für diesen Binder zu wählen.',
     clearIcon: 'Icon entfernen',
     card: 'Karte',
     cards: 'Karten',
