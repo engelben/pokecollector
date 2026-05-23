@@ -64,46 +64,59 @@ function SetCardActionModal({ card, setLang, onClose, onAdd, onQuantityChange, o
   const ownedItems = card.owned_items || []
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm md:flex md:items-center md:justify-center" onClick={onClose}>
-      <div className="fixed bottom-0 left-0 right-0 max-h-[85dvh] overflow-y-auto rounded-t-2xl bg-bg-surface border-t border-border p-5 md:static md:w-full md:max-w-md md:rounded-2xl md:border" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div className="min-w-0">
-            <h2 className="text-lg font-bold text-text-primary">{card.name}</h2>
-            <p className="text-xs text-text-muted">#{card.number} · {setLang.toUpperCase()}</p>
-          </div>
-          <button onClick={onClose} className="text-text-muted hover:text-text-primary"><X size={18} /></button>
+    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm md:flex md:items-center md:justify-center md:bg-black/80" onClick={onClose}>
+      <div
+        className={[
+          'fixed bottom-0 left-0 right-0 rounded-t-2xl max-h-[90dvh] overflow-y-auto',
+          'bg-bg-surface border-t border-border more-sheet-enter',
+          'md:static md:w-full md:max-w-md md:rounded-2xl md:border md:max-h-[85vh] md:animate-none',
+        ].join(' ')}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-center pt-3 pb-1 md:hidden">
+          <div className="w-10 h-1 bg-border rounded-full" />
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <p className="text-xs font-semibold text-text-muted mb-2 uppercase tracking-wide">{t('setDetail.addVersion')}</p>
-            <div className="grid grid-cols-2 gap-2">
-              {variants.map((variant) => (
-                <button key={variant} onClick={() => onAdd(card, variant === 'Normal' ? null : variant)} className="btn-ghost justify-center text-sm">
-                  <Plus size={14} /> {variant}
-                </button>
-              ))}
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold text-text-primary">{card.name}</h2>
+              <p className="text-xs text-text-muted">#{card.number} · {setLang.toUpperCase()}</p>
             </div>
+            <button onClick={onClose} className="text-text-muted hover:text-text-primary"><X size={18} /></button>
           </div>
 
-          {ownedItems.length > 0 && (
+          <div className="space-y-4">
             <div>
-              <p className="text-xs font-semibold text-text-muted mb-2 uppercase tracking-wide">{t('setDetail.ownedVersions')}</p>
-              <div className="space-y-2">
-                {ownedItems.map(item => (
-                  <OwnedVersionRow
-                    key={item.id}
-                    item={item}
-                    onQuantityChange={onQuantityChange}
-                    onRemove={onRemove}
-                    isUpdating={isUpdatingQuantity}
-                    isRemoving={isRemoving}
-                    t={t}
-                  />
+              <p className="text-xs font-semibold text-text-muted mb-2 uppercase tracking-wide">{t('setDetail.addVersion')}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {variants.map((variant) => (
+                  <button key={variant} onClick={() => onAdd(card, variant === 'Normal' ? null : variant)} className="btn-ghost justify-center text-sm">
+                    <Plus size={14} /> {variant}
+                  </button>
                 ))}
               </div>
             </div>
-          )}
+
+            {ownedItems.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-text-muted mb-2 uppercase tracking-wide">{t('setDetail.ownedVersions')}</p>
+                <div className="space-y-2">
+                  {ownedItems.map(item => (
+                    <OwnedVersionRow
+                      key={item.id}
+                      item={item}
+                      onQuantityChange={onQuantityChange}
+                      onRemove={onRemove}
+                      isUpdating={isUpdatingQuantity}
+                      isRemoving={isRemoving}
+                      t={t}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
