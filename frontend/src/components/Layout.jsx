@@ -8,7 +8,7 @@ export default function Layout() {
   return (
     <div className="min-h-dvh flex flex-col bg-bg overflow-x-hidden">
       {!isHome && <AppNav />}
-      <main className={`flex-1 ${!isHome ? 'w-full px-4 pb-8' : ''}`}>
+      <main className={`flex-1 ${!isHome ? 'w-full px-5 pb-8 sm:px-6 lg:px-8' : ''}`}>
         <Outlet />
       </main>
     </div>
