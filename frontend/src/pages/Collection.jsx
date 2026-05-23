@@ -380,7 +380,7 @@ function CollectionEditModal({ item, onClose }) {
       </div>
     ) : (
       <select
-        className="select text-sm"
+        className="select text-sm text-center [text-align-last:center] font-medium"
         value=""
         onChange={(e) => {
           if (e.target.value) addToBinderMutation.mutate(parseInt(e.target.value, 10))
