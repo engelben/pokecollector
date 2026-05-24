@@ -461,6 +461,54 @@ def add_binder_entry_to_wishlist(
     return {"message": "Card added to wishlist"}
 
 
+@router.post("/{binder_id}/wishlist")
+def add_binder_cards_to_wishlist(
+    binder_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Add all cards from a binder to the user's global wishlist."""
+    binder = db.query(Binder).filter(
+        Binder.id == binder_id,
+        Binder.user_id == current_user.id,
+    ).first()
+    if not binder:
+        raise HTTPException(status_code=404, detail="Binder not found")
+    if (binder.binder_type or "collection") != "wishlist":
+        raise HTTPException(status_code=400, detail="Bulk wishlist add is only available for wishlist binders")
+
+    binder_cards = db.query(BinderCard.card_id).filter(BinderCard.binder_id == binder_id).all()
+    card_ids = []
+    seen = set()
+    for (card_id,) in binder_cards:
+        if card_id and card_id not in seen:
+            seen.add(card_id)
+            card_ids.append(card_id)
+
+    if not card_ids:
+        return {"added": 0, "skipped": 0}
+
+    existing_ids = {
+        card_id for (card_id,) in db.query(WishlistItem.card_id).filter(
+            WishlistItem.user_id == current_user.id,
+            WishlistItem.card_id.in_(card_ids),
+        ).all()
+    }
+
+    added = 0
+    for card_id in card_ids:
+        if card_id in existing_ids:
+            continue
+        db.add(WishlistItem(
+            card_id=card_id,
+            user_id=current_user.id,
+            created_at=datetime.datetime.utcnow(),
+        ))
+        added += 1
+    db.commit()
+    return {"added": added, "skipped": len(card_ids) - added}
+
+
 @router.get("/{binder_id}/export-csv")
 def export_binder_csv(
     binder_id: int,

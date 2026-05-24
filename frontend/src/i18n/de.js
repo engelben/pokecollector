@@ -891,6 +891,10 @@ const de = {
     csvImportErrorBehavior: 'Zeilen mit ungültigen Kartencodes werden gemeldet und übersprungen. Externe Decklistenformate werden nicht automatisch gelesen.',
     alreadyUsed: 'Schon genutzt',
     collectionQuantityLocked: 'Die Menge im echten Binder wird durch den besessenen Sammlungseintrag bestimmt.',
+    addAllToWishlist: 'Alle zur Wunschliste hinzufügen',
+    addAllShort: 'Alle hinzufügen',
+    added: 'hinzugefügt',
+    skipped: 'übersprungen',
   },
 
   // Navigation (social)

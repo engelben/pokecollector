@@ -603,32 +603,28 @@ def migrate_custom_card(
                 item.lang = custom_lang
         db.flush()
 
-    # 3. Re-assign wishlist items
-    try:
-        with db.begin_nested():
-            db.query(WishlistItem).filter(
-                WishlistItem.card_id == custom_card_id
-            ).update({"card_id": composite_api_card_id}, synchronize_session=False)
-            db.flush()
-    except IntegrityError:
-        custom_wishlist = db.query(WishlistItem).filter(
-            WishlistItem.card_id == custom_card_id
-        ).first()
-        existing_wishlist = db.query(WishlistItem).filter(
-            WishlistItem.card_id == composite_api_card_id
-        ).first()
-        if custom_wishlist:
-            if existing_wishlist:
-                if existing_wishlist.price_alert_above is None:
-                    existing_wishlist.price_alert_above = custom_wishlist.price_alert_above
-                if existing_wishlist.price_alert_below is None:
-                    existing_wishlist.price_alert_below = custom_wishlist.price_alert_below
-                if existing_wishlist.notified_at is None:
-                    existing_wishlist.notified_at = custom_wishlist.notified_at
-                db.delete(custom_wishlist)
-            else:
-                custom_wishlist.card_id = composite_api_card_id
-        db.flush()
+    # 3. Re-assign wishlist items, preserving the per-user uniqueness model.
+    custom_wishlist_items = db.query(WishlistItem).filter(
+        WishlistItem.card_id == custom_card_id
+    ).all()
+    existing_wishlist_items = db.query(WishlistItem).filter(
+        WishlistItem.card_id == composite_api_card_id
+    ).all()
+    existing_wishlist_by_user = {item.user_id: item for item in existing_wishlist_items}
+    for custom_wishlist in custom_wishlist_items:
+        existing_wishlist = existing_wishlist_by_user.get(custom_wishlist.user_id)
+        if existing_wishlist:
+            if existing_wishlist.price_alert_above is None:
+                existing_wishlist.price_alert_above = custom_wishlist.price_alert_above
+            if existing_wishlist.price_alert_below is None:
+                existing_wishlist.price_alert_below = custom_wishlist.price_alert_below
+            if existing_wishlist.notified_at is None:
+                existing_wishlist.notified_at = custom_wishlist.notified_at
+            db.delete(custom_wishlist)
+        else:
+            custom_wishlist.card_id = composite_api_card_id
+            existing_wishlist_by_user[custom_wishlist.user_id] = custom_wishlist
+    db.flush()
 
     # 4. Re-assign binder cards
     try:

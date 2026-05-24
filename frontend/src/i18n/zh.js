@@ -887,6 +887,10 @@ const zh = {
     csvImportErrorBehavior: '无效卡牌代码的行会被报告并跳过。不会自动解析外部牌表格式。',
     alreadyUsed: '已使用',
     collectionQuantityLocked: '收藏活页夹数量由已拥有的收藏条目决定。',
+    addAllToWishlist: '全部添加到愿望清单',
+    addAllShort: '全部添加',
+    added: '已添加',
+    skipped: '已跳过',
   },
 
   // Leaderboard

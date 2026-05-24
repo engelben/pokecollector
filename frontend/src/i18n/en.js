@@ -891,6 +891,10 @@ const en = {
     csvImportErrorBehavior: 'Rows with invalid card codes are reported and skipped. No external decklist formats are parsed automatically.',
     alreadyUsed: 'Already used',
     collectionQuantityLocked: 'Collection binder quantity is controlled by the owned collection item.',
+    addAllToWishlist: 'Add all to wishlist',
+    addAllShort: 'Add all',
+    added: 'added',
+    skipped: 'skipped',
   },
   // Leaderboard
   leaderboard: {

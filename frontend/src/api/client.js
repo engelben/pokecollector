@@ -115,6 +115,7 @@ export const addCardToBinder = (binderId, cardId) => api.post(`/binders/${binder
 export const addCollectionItemToBinder = (binderId, collectionItemId) => api.post(`/binders/${binderId}/collection-items?collection_item_id=${collectionItemId}`)
 export const updateBinderEntry = (binderId, binderCardId, data) => api.put(`/binders/${binderId}/entries/${binderCardId}`, data)
 export const addBinderEntryToWishlist = (binderId, binderCardId) => api.post(`/binders/${binderId}/entries/${binderCardId}/wishlist`)
+export const addBinderCardsToWishlist = (binderId) => api.post(`/binders/${binderId}/wishlist`).then(r => r.data)
 export const removeCardFromBinder = (binderId, cardId) => api.delete(`/binders/${binderId}/cards/${cardId}`)
 export const removeBinderEntry = (binderId, binderCardId) => api.delete(`/binders/${binderId}/entries/${binderCardId}`)
 export const importBinderCsv = (binderId, file) => {

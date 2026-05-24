@@ -185,6 +185,17 @@ def _run_migrations(conn):
         )""",
         "ALTER TABLE collection ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)",
         "ALTER TABLE wishlist ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)",
+        "ALTER TABLE wishlist DROP CONSTRAINT IF EXISTS wishlist_card_id_key",
+        "ALTER TABLE wishlist DROP CONSTRAINT IF EXISTS uq_wishlist_card_id",
+        """DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                WHERE conname = 'uq_wishlist_user_card'
+            ) THEN
+                ALTER TABLE wishlist ADD CONSTRAINT uq_wishlist_user_card UNIQUE (user_id, card_id);
+            END IF;
+        END$$""",
         "ALTER TABLE binders ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)",
         "ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)",
         "ALTER TABLE portfolio_snapshots ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)",

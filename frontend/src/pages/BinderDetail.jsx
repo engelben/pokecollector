@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Plus, Trash2, Package, Star, Download, Upload, X, Heart, Minus } from 'lucide-react'
-import { getBinderCards, removeCardFromBinder, removeBinderEntry, addCardToBinder, addCollectionItemToBinder, searchCards, getCollection, updateBinderEntry, addBinderEntryToWishlist, importBinderCsv, exportBinderCsv } from '../api/client'
+import { getBinderCards, removeCardFromBinder, removeBinderEntry, addCardToBinder, addCollectionItemToBinder, searchCards, getCollection, updateBinderEntry, addBinderEntryToWishlist, addBinderCardsToWishlist, importBinderCsv, exportBinderCsv } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import toast from 'react-hot-toast'
 import { useTilt } from '../hooks/useTilt'
@@ -242,6 +242,15 @@ export default function BinderDetail() {
     onError: (e) => toast.error(e.response?.data?.detail || t('card.addFailed')),
   })
 
+  const bulkWishlistMutation = useMutation({
+    mutationFn: () => addBinderCardsToWishlist(parseInt(binderId)),
+    onSuccess: (result) => {
+      toast.success(`${t('binderTypes.addAllToWishlist')} ✓ (${result.added} ${t('binderTypes.added')}, ${result.skipped} ${t('binderTypes.skipped')})`)
+      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.detail || t('card.addFailed')),
+  })
+
   const importMutation = useMutation({
     mutationFn: (file) => importBinderCsv(parseInt(binderId), file),
     onSuccess: (result) => {
@@ -322,6 +331,17 @@ export default function BinderDetail() {
           <button onClick={() => setShowSearch(!showSearch)} className="btn-primary flex-shrink-0">
             <Plus size={16} /> {t('common.add')} {t('nav.cards')}
           </button>
+          {isWishlist && (
+            <button
+              onClick={() => bulkWishlistMutation.mutate()}
+              className="btn-ghost flex-shrink-0 px-2"
+              disabled={bulkWishlistMutation.isPending || cards.length === 0}
+              title={t('binderTypes.addAllToWishlist')}
+              aria-label={t('binderTypes.addAllToWishlist')}
+            >
+              <Heart size={16} /> {t('binderTypes.addAllShort')}
+            </button>
+          )}
           <button
             onClick={() => setShowCsvImportModal(true)}
             className="btn-ghost flex-shrink-0 px-2"
