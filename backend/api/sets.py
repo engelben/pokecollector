@@ -14,6 +14,7 @@ from services.card_fallbacks import (
     clone_card_for_missing_language,
     other_supported_lang,
 )
+from services.card_upsert import upsert_card
 
 router = APIRouter()
 
@@ -44,18 +45,6 @@ def _get_language(db: Session) -> str:
     """Get display language from settings."""
     row = db.query(Setting).filter(Setting.key == "language").first()
     return row.value if row else "de"
-
-
-def _upsert_card(db: Session, parsed: dict) -> Card:
-    existing = db.query(Card).filter(Card.id == parsed["id"]).first()
-    if existing:
-        for key, value in parsed.items():
-            if key != "id":
-                setattr(existing, key, value)
-        return existing
-    card = Card(**parsed)
-    db.add(card)
-    return card
 
 
 def _refresh_sets(db: Session, display_lang: str):
@@ -235,7 +224,7 @@ def get_set_checklist(
             for card_data in set_data.get("cards", []):
                 parsed = pokemon_api.parse_card_for_db(card_data, default_set_id=tcg_id, lang=set_lang)
                 parsed = apply_cross_language_fallbacks(db, parsed)
-                _upsert_card(db, parsed)
+                upsert_card(db, parsed)
             db.commit()
             cards = db.query(Card).filter(
                 Card.set_id == tcg_id,
@@ -267,7 +256,7 @@ def get_set_checklist(
                             default_set_id=tcg_id,
                         )
                         if parsed:
-                            _upsert_card(db, parsed)
+                            upsert_card(db, parsed)
                 else:
                     set_data = pokemon_api.get_set_cards(tcg_id, lang=fallback_lang)
                     for card_data in set_data.get("cards", []):
@@ -279,7 +268,7 @@ def get_set_checklist(
                             default_set_id=tcg_id,
                         )
                         if parsed:
-                            _upsert_card(db, parsed)
+                            upsert_card(db, parsed)
                 db.commit()
             except Exception:
                 db.rollback()

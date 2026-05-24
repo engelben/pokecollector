@@ -3,10 +3,11 @@ import datetime
 import math
 from typing import Any, Mapping
 from sqlalchemy.orm import Session, load_only
-from sqlalchemy import func
-from models import Card, Set, CollectionItem, WishlistItem, PriceHistory, SyncLog, PortfolioSnapshot, CustomCardMatch, Setting, ProductPurchase, User, ImageCache
+from sqlalchemy import func, or_
+from models import Card, Set, CollectionItem, WishlistItem, PriceHistory, SyncLog, PortfolioSnapshot, CustomCardMatch, Setting, ProductPurchase, User
 from services import pokemon_api, telegram
 from services.card_fallbacks import PRICE_FIELDS, apply_cross_language_fallbacks
+from services.card_upsert import upsert_card
 from services.card_values import effective_market_price
 
 logger = logging.getLogger(__name__)
@@ -244,27 +245,6 @@ def upsert_set(db: Session, set_data: dict):
     return existing
 
 
-def upsert_card(db: Session, card_data: dict):
-    """Insert or update a card in the database."""
-    existing = db.query(Card).filter(Card.id == card_data["id"]).first()
-    card_data["updated_at"] = datetime.datetime.utcnow()
-    has_api_image = bool(card_data.get("images_small") or card_data.get("images_large"))
-    if existing:
-        for key, value in card_data.items():
-            if key != "id":
-                setattr(existing, key, value)
-        if has_api_image:
-            existing.custom_image_url = None
-            db.query(ImageCache).filter(ImageCache.image_key.in_([
-                f"card:{existing.id}:small:custom",
-                f"card:{existing.id}:large:custom",
-            ])).delete(synchronize_session=False)
-    else:
-        existing = Card(**card_data)
-        db.add(existing)
-    return existing
-
-
 def record_price_history(db: Session, card: Card):
     """Record today's price for a card."""
     today = datetime.date.today()
@@ -484,13 +464,13 @@ def perform_full_sync(db: Session) -> dict:
             existing_card_count = db.query(Card).filter(
                 Card.set_id == tcg_id, Card.lang == set_lang
             ).count()
-            fallback_card_count = db.query(Card).filter(
+            has_fallback_cards = db.query(Card.id).filter(
                 Card.set_id == tcg_id,
                 Card.lang == set_lang,
-                (Card.image_source_lang != None) | (Card.price_source_lang != None),
-            ).count()
+                or_(Card.image_source_lang.isnot(None), Card.price_source_lang.isnot(None)),
+            ).first() is not None
             set_total = set_obj.total or 0
-            if existing_card_count >= set_total and existing_card_count > 0 and fallback_card_count == 0:
+            if existing_card_count >= set_total and existing_card_count > 0 and not has_fallback_cards:
                 continue  # Already have all native cards for this lang
             try:
                 set_detail = pokemon_api.get_set_cards(tcg_id, lang=set_lang)

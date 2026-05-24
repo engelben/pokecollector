@@ -14,6 +14,7 @@ from services.card_fallbacks import (
     clone_card_for_missing_language,
     other_supported_lang,
 )
+from services.card_upsert import upsert_card
 from services.image_url_security import validate_public_https_image_url
 import datetime
 import re
@@ -185,13 +186,7 @@ def _search_by_code_number(
                 for card_data in set_data.get("cards", []):
                     parsed = pokemon_api.parse_card_for_db(card_data, default_set_id=tcg_set_id, lang=set_lang)
                     parsed = apply_cross_language_fallbacks(db, parsed)
-                    existing = db.query(Card).filter(Card.id == parsed["id"]).first()
-                    if existing:
-                        for key, value in parsed.items():
-                            if key != "id":
-                                setattr(existing, key, value)
-                    else:
-                        db.add(Card(**parsed))
+                    upsert_card(db, parsed)
                 db.commit()
             except Exception:
                 db.rollback()
@@ -211,13 +206,7 @@ def _search_by_code_number(
                             )
                             if not parsed:
                                 continue
-                            existing = db.query(Card).filter(Card.id == parsed["id"]).first()
-                            if existing:
-                                for key, value in parsed.items():
-                                    if key != "id":
-                                        setattr(existing, key, value)
-                            else:
-                                db.add(Card(**parsed))
+                            upsert_card(db, parsed)
                         db.commit()
                     except Exception:
                         db.rollback()
@@ -846,8 +835,7 @@ def get_card(
                 else:
                     db.add(Set(id=parsed["set_id"], name=parsed["set_id"], total=0))
 
-        card = Card(**parsed)
-        db.add(card)
+        card = upsert_card(db, parsed)
         db.commit()
         db.refresh(card)
         return card

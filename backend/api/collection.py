@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from api.auth import get_current_user
@@ -30,6 +30,30 @@ def _get_item_price(item):
     return effective_market_price(item.card, item.variant)
 
 
+def _ensure_set_exists_for_card(db: Session, parsed: dict, lang: str, card_data: Optional[dict] = None) -> None:
+    set_id = parsed.get("set_id")
+    if not set_id:
+        return
+
+    existing_set = db.query(Set).filter(
+        or_(Set.id == set_id, Set.id == f"{set_id}_{lang}", Set.tcg_set_id == set_id),
+        Set.lang == lang,
+    ).first()
+    if existing_set:
+        return
+
+    set_data = card_data.get("set") if card_data else None
+    if set_data:
+        set_parsed = pokemon_api.parse_set_for_db(set_data)
+        set_parsed["lang"] = set_data.get("_lang", lang)
+        if not set_parsed["id"].endswith(("_de", "_en")):
+            set_parsed["id"] = f"{set_id}_{lang}"
+        set_parsed["tcg_set_id"] = set_id
+        db.add(Set(**set_parsed))
+    else:
+        db.add(Set(id=f"{set_id}_{lang}", tcg_set_id=set_id, name=set_id, total=0, lang=lang))
+
+
 def ensure_card_exists(db: Session, card_id: str, lang: str = "en") -> Card:
     """Ensure card exists in DB. If not found locally, try to fetch from TCGdex."""
     card = db.query(Card).filter(Card.id == card_id).first()
@@ -44,16 +68,9 @@ def ensure_card_exists(db: Session, card_id: str, lang: str = "en") -> Card:
             if not parsed:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"Card {card_id} not found in local database. Please run a Sync first."
+                    detail=f"Card {card_id} is not available locally, from TCGdex, or from a sibling-language fallback yet. Please try again after the source data is available or run Sync later."
                 )
-        if parsed.get("set_id") and card_data:
-            set_data = card_data.get("set", {})
-            if set_data:
-                set_parsed = pokemon_api.parse_set_for_db(set_data)
-                set_parsed["lang"] = set_data.get("_lang", lang)
-                existing_set = db.query(Set).filter(Set.id == set_parsed["id"]).first()
-                if not existing_set:
-                    db.add(Set(**set_parsed))
+        _ensure_set_exists_for_card(db, parsed, lang, card_data)
         card = Card(**parsed)
         db.add(card)
         try:
@@ -65,7 +82,7 @@ def ensure_card_exists(db: Session, card_id: str, lang: str = "en") -> Card:
             if not card:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"Card {card_id} not found in local database. Please run a Sync first."
+                    detail=f"Card {card_id} is not available locally, from TCGdex, or from a sibling-language fallback yet. Please try again after the source data is available or run Sync later."
                 )
     return card
 
