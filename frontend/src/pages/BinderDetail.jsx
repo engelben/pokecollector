@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Plus, Trash2, Package, Star, Download, Upload, X, Heart, Minus } from 'lucide-react'
@@ -130,6 +130,7 @@ export default function BinderDetail() {
   const [selectedCard, setSelectedCard] = useState(null)
   const [showCsvImportModal, setShowCsvImportModal] = useState(false)
   const fileInputRef = useRef(null)
+  const selectedCardCloseRef = useRef(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['binder-cards', binderId],
@@ -226,12 +227,30 @@ export default function BinderDetail() {
 
   const updateEntryMutation = useMutation({
     mutationFn: ({ binderCardId, requiredQuantity }) => updateBinderEntry(parseInt(binderId), binderCardId, { required_quantity: requiredQuantity }),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      setSelectedCard(prev => {
+        if (!prev || prev.binder_card_id !== variables.binderCardId) return prev
+        return {
+          ...prev,
+          required_quantity: variables.requiredQuantity,
+          missing_quantity: Math.max(variables.requiredQuantity - (prev.owned_quantity || 0), 0),
+        }
+      })
       queryClient.invalidateQueries({ queryKey: ['binder-cards', binderId] })
       queryClient.invalidateQueries({ queryKey: ['binders'] })
     },
     onError: (e) => toast.error(e.response?.data?.detail || 'Update failed'),
   })
+
+  useEffect(() => {
+    if (!selectedCard) return undefined
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setSelectedCard(null)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    selectedCardCloseRef.current?.focus()
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [selectedCard])
 
   const wishlistMutation = useMutation({
     mutationFn: (binderCardId) => addBinderEntryToWishlist(parseInt(binderId), binderCardId),
@@ -293,7 +312,6 @@ export default function BinderDetail() {
   const changeRequiredQuantity = (card, delta) => {
     const next = Math.max(1, Math.min(99, (card.required_quantity || 1) + delta))
     updateEntryMutation.mutate({ binderCardId: card.binder_card_id, requiredQuantity: next })
-    setSelectedCard({ ...card, required_quantity: next, missing_quantity: Math.max(next - (card.owned_quantity || 0), 0) })
   }
 
   const handleImportFile = (event) => {
@@ -608,14 +626,20 @@ export default function BinderDetail() {
 
       {selectedCard && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setSelectedCard(null)}>
-          <div className="bg-bg-surface border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="bg-bg-surface border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="binder-card-dialog-title"
+          >
             <div className="p-4 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 className="text-lg font-bold text-text-primary truncate">{selectedCard.name}</h2>
+                  <h2 id="binder-card-dialog-title" className="text-lg font-bold text-text-primary truncate">{selectedCard.name}</h2>
                   <p className="text-xs text-text-muted">{selectedCard.set_name || selectedCard.set_id} #{selectedCard.number}</p>
                 </div>
-                <button onClick={() => setSelectedCard(null)} className="text-text-muted hover:text-text-primary p-1"><X size={18} /></button>
+                <button ref={selectedCardCloseRef} onClick={() => setSelectedCard(null)} className="text-text-muted hover:text-text-primary p-1" aria-label={t('common.close')}><X size={18} /></button>
               </div>
 
               <div className="grid grid-cols-[120px_1fr] gap-4">

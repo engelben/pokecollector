@@ -132,8 +132,12 @@ export const exportBinderCsv = (binderId) => {
     const a = document.createElement('a')
     a.href = url
     a.download = `binder-${binderId}.csv`
+    document.body.appendChild(a)
     a.click()
-    window.URL.revokeObjectURL(url)
+    setTimeout(() => {
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    }, 0)
   })
 }
 

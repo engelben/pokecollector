@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 from typing import List
 from api.auth import get_current_user
@@ -12,8 +13,10 @@ from services.card_values import effective_market_price
 import datetime
 import csv
 import io
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 ALLOWED_BINDER_FORMATS = {"Standard", "Expanded", "Unlimited", "Casual"}
 BINDER_CSV_COLUMNS = ["set_code", "number", "required_quantity", "lang"]
@@ -452,12 +455,16 @@ def add_binder_entry_to_wishlist(
     if existing:
         return {"message": "Card already in wishlist"}
 
-    db.add(WishlistItem(
-        card_id=bc.card_id,
-        user_id=current_user.id,
-        created_at=datetime.datetime.utcnow(),
-    ))
-    db.commit()
+    try:
+        db.add(WishlistItem(
+            card_id=bc.card_id,
+            user_id=current_user.id,
+            created_at=datetime.datetime.utcnow(),
+        ))
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return {"message": "Card already in wishlist"}
     return {"message": "Card added to wishlist"}
 
 
@@ -496,16 +503,36 @@ def add_binder_cards_to_wishlist(
     }
 
     added = 0
-    for card_id in card_ids:
-        if card_id in existing_ids:
-            continue
-        db.add(WishlistItem(
-            card_id=card_id,
-            user_id=current_user.id,
-            created_at=datetime.datetime.utcnow(),
-        ))
-        added += 1
-    db.commit()
+    try:
+        for card_id in card_ids:
+            if card_id in existing_ids:
+                continue
+            db.add(WishlistItem(
+                card_id=card_id,
+                user_id=current_user.id,
+                created_at=datetime.datetime.utcnow(),
+            ))
+            added += 1
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        existing_ids = {
+            card_id for (card_id,) in db.query(WishlistItem.card_id).filter(
+                WishlistItem.user_id == current_user.id,
+                WishlistItem.card_id.in_(card_ids),
+            ).all()
+        }
+        added = 0
+        for card_id in card_ids:
+            if card_id in existing_ids:
+                continue
+            db.add(WishlistItem(
+                card_id=card_id,
+                user_id=current_user.id,
+                created_at=datetime.datetime.utcnow(),
+            ))
+            added += 1
+        db.commit()
     return {"added": added, "skipped": len(card_ids) - added}
 
 
@@ -675,10 +702,15 @@ async def import_binder_csv(
             db.rollback()
             failed += 1
             errors.append(f"row {row_number}: {exc.detail}")
-        except Exception as exc:
+        except ValueError as exc:
             db.rollback()
             failed += 1
-            errors.append(f"row {row_number}: {str(exc)}")
+            errors.append(f"row {row_number}: {exc}")
+        except Exception:
+            db.rollback()
+            failed += 1
+            logger.exception("Unexpected binder CSV validation error on row %s", row_number)
+            errors.append(f"row {row_number}: unexpected import error")
 
     if failed:
         return {"added": 0, "updated": 0, "skipped": skipped, "failed": failed, "errors": errors}
@@ -709,9 +741,10 @@ async def import_binder_csv(
                 ))
                 added += 1
         db.commit()
-    except Exception as exc:
+    except Exception:
         db.rollback()
-        return {"added": 0, "updated": 0, "skipped": skipped, "failed": 1, "errors": [f"write failed: {str(exc)}"]}
+        logger.exception("Unexpected binder CSV write error")
+        return {"added": 0, "updated": 0, "skipped": skipped, "failed": 1, "errors": ["write failed"]}
 
     return {"added": added, "updated": updated, "skipped": skipped, "failed": failed, "errors": errors}
 
