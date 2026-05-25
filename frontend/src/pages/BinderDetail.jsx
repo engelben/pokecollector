@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Plus, Trash2, Package, Star, Download, Upload, X, Heart, Minus } from 'lucide-react'
-import { getBinderCards, removeCardFromBinder, removeBinderEntry, addCardToBinder, addCollectionItemToBinder, searchCards, getCollection, updateBinderEntry, getBinderEntryEquivalentPrints, switchBinderEntryCard, addBinderEntryToWishlist, addBinderCardsToWishlist, importBinderCsv, exportBinderCsv } from '../api/client'
+import { getBinderCards, removeCardFromBinder, removeBinderEntry, addCardToBinder, addCollectionItemToBinder, searchCards, getCollection, updateBinderEntry, getBinderEntryEquivalentPrints, getBinderPrintOptimization, applyBinderPrintOptimization, switchBinderEntryCard, addBinderEntryToWishlist, addBinderCardsToWishlist, importBinderCsv, exportBinderCsv } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import toast from 'react-hot-toast'
 import { useTilt } from '../hooks/useTilt'
@@ -129,6 +129,7 @@ export default function BinderDetail() {
   const [binderFilterQuery, setBinderFilterQuery] = useState('')
   const [selectedCard, setSelectedCard] = useState(null)
   const [showCsvImportModal, setShowCsvImportModal] = useState(false)
+  const [showPrintOptimizer, setShowPrintOptimizer] = useState(false)
   const fileInputRef = useRef(null)
   const selectedCardCloseRef = useRef(null)
 
@@ -305,6 +306,25 @@ export default function BinderDetail() {
     onError: (e) => toast.error(e.response?.data?.detail || t('binderTypes.printSwitchFailed')),
   })
 
+  const { data: printOptimizationData, isLoading: printOptimizationLoading, isError: printOptimizationError, error: printOptimizationErrorData } = useQuery({
+    queryKey: ['binder-print-optimization', binderId],
+    queryFn: () => getBinderPrintOptimization(parseInt(binderId)),
+    enabled: isWishlist && showPrintOptimizer,
+    retry: false,
+  })
+
+  const applyPrintOptimizationMutation = useMutation({
+    mutationFn: () => applyBinderPrintOptimization(parseInt(binderId)),
+    onSuccess: (result) => {
+      toast.success(`${t('binderTypes.optimizePrintsApplied')} ✓ (${result.applied} ${t('binderTypes.updated')}, ${result.skipped} ${t('binderTypes.skipped')}, €${(result.total_savings || 0).toFixed(2)})`)
+      queryClient.invalidateQueries({ queryKey: ['binder-cards', binderId] })
+      queryClient.invalidateQueries({ queryKey: ['binders'] })
+      queryClient.invalidateQueries({ queryKey: ['binder-print-optimization', binderId] })
+      setShowPrintOptimizer(false)
+    },
+    onError: (e) => toast.error(e.response?.data?.detail || t('binderTypes.optimizePrintsFailed')),
+  })
+
   if (isLoading) return <div className="skeleton h-64 rounded-xl" />
 
   const cards = data?.cards || []
@@ -372,15 +392,26 @@ export default function BinderDetail() {
             <Plus size={16} /> {t('common.add')} {t('nav.cards')}
           </button>
           {isWishlist && (
-            <button
-              onClick={() => bulkWishlistMutation.mutate()}
-              className="btn-ghost flex-shrink-0 px-2"
-              disabled={bulkWishlistMutation.isPending || cards.length === 0}
-              title={t('binderTypes.addAllToWishlist')}
-              aria-label={t('binderTypes.addAllToWishlist')}
-            >
-              <Heart size={16} /> {t('binderTypes.addAllShort')}
-            </button>
+            <>
+              <button
+                onClick={() => setShowPrintOptimizer(true)}
+                className="btn-ghost flex-shrink-0 px-2"
+                disabled={cards.length === 0}
+                title={t('binderTypes.optimizePrints')}
+                aria-label={t('binderTypes.optimizePrints')}
+              >
+                <Star size={16} /> {t('binderTypes.optimizeShort')}
+              </button>
+              <button
+                onClick={() => bulkWishlistMutation.mutate()}
+                className="btn-ghost flex-shrink-0 px-2"
+                disabled={bulkWishlistMutation.isPending || cards.length === 0}
+                title={t('binderTypes.addAllToWishlist')}
+                aria-label={t('binderTypes.addAllToWishlist')}
+              >
+                <Heart size={16} /> {t('binderTypes.addAllShort')}
+              </button>
+            </>
           )}
           <button
             onClick={() => setShowCsvImportModal(true)}
@@ -650,6 +681,85 @@ export default function BinderDetail() {
           onDownloadTemplate={downloadBinderCsvTemplate}
           isImporting={importMutation.isPending}
         />
+      )}
+
+      {showPrintOptimizer && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm md:flex md:items-center md:justify-center md:bg-black/80" onClick={() => setShowPrintOptimizer(false)}>
+          <div
+            className="fixed bottom-0 left-0 right-0 rounded-t-2xl max-h-[90dvh] overflow-y-auto bg-bg-surface border-t border-border md:static md:rounded-2xl md:border md:max-w-3xl md:w-full md:max-h-[85vh]"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1 md:hidden"><div className="w-10 h-1 bg-border rounded-full" /></div>
+            <div className="p-5 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-base font-bold text-text-primary">{t('binderTypes.optimizePrints')}</h2>
+                  <p className="text-xs text-text-secondary mt-1">{t('binderTypes.optimizePrintsHelp')}</p>
+                </div>
+                <button onClick={() => setShowPrintOptimizer(false)} className="text-text-muted hover:text-text-primary flex-shrink-0 p-1" aria-label={t('common.close')}>
+                  <X size={18} />
+                </button>
+              </div>
+
+              {printOptimizationLoading && <p className="text-sm text-text-muted text-center py-6">{t('binderTypes.optimizingPrints')}</p>}
+
+              {printOptimizationError && (
+                <p className="rounded-xl bg-brand-red/10 p-4 text-sm text-brand-red text-center">
+                  {printOptimizationErrorData?.response?.data?.detail || t('binderTypes.optimizePrintsFailed')}
+                </p>
+              )}
+
+              {!printOptimizationLoading && !printOptimizationError && (printOptimizationData?.recommendations || []).length === 0 && (
+                <p className="rounded-xl bg-bg-card/60 p-4 text-sm text-text-muted text-center">{t('binderTypes.noPrintOptimizations')}</p>
+              )}
+
+              {!printOptimizationError && (printOptimizationData?.recommendations || []).length > 0 && (
+                <>
+                  <div className="rounded-xl bg-yellow/10 px-3 py-2 text-xs text-yellow">
+                    {t('binderTypes.optimizePrintsSummary')}: {printOptimizationData.change_count} · €{(printOptimizationData.total_savings || 0).toFixed(2)}
+                  </div>
+                  <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                    {printOptimizationData.recommendations.map((item) => (
+                      <div key={item.binder_card_id} className="rounded-xl border border-border bg-bg-card/60 p-3 space-y-2">
+                        <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
+                          <div className="min-w-0 flex items-center gap-2">
+                            {resolveCardImageUrl(item.current) && <img src={resolveCardImageUrl(item.current)} alt={item.current.name} className="w-9 aspect-[2.5/3.5] object-cover rounded" loading="lazy" />}
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-text-primary truncate">{item.current.set_name || item.current.set_id} #{item.current.number}</p>
+                              <p className="text-[11px] text-text-muted">{item.current_price ? `€${item.current_price.toFixed(2)}` : t('binderTypes.noPriceDataShort')}</p>
+                            </div>
+                          </div>
+                          <span className="text-text-muted text-xs">→</span>
+                          <div className="min-w-0 flex items-center gap-2 justify-end text-right">
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-text-primary truncate">{item.suggested.set_name || item.suggested.set_id} #{item.suggested.number}</p>
+                              <p className="text-[11px] text-green">€{item.suggested_price.toFixed(2)}</p>
+                            </div>
+                            {resolveCardImageUrl(item.suggested) && <img src={resolveCardImageUrl(item.suggested)} alt={item.suggested.name} className="w-9 aspect-[2.5/3.5] object-cover rounded" loading="lazy" />}
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-text-muted">
+                          {item.required_quantity}x · {t('binderTypes.estimatedSavings')}: €{item.total_savings.toFixed(2)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" className="btn-ghost justify-center" onClick={() => setShowPrintOptimizer(false)}>{t('common.cancel')}</button>
+                    <button
+                      type="button"
+                      className="btn-primary justify-center"
+                      disabled={applyPrintOptimizationMutation.isPending}
+                      onClick={() => applyPrintOptimizationMutation.mutate()}
+                    >
+                      {applyPrintOptimizationMutation.isPending ? t('binderTypes.optimizingPrints') : t('binderTypes.applyOptimization')}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {selectedCard && (

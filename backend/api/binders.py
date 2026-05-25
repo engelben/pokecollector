@@ -182,6 +182,87 @@ def _binder_card_summary(
     return summary
 
 
+def _price_sort_value(card: Card) -> float | None:
+    price = effective_market_price(card, None)
+    return float(price) if price and price > 0 else None
+
+
+def _cheapest_equivalent_candidate(db: Session, source_card: Card) -> Card | None:
+    source_card = _ensure_card_gameplay_data(db, source_card)
+    if not source_card or not source_card.playable_fingerprint:
+        return None
+
+    _cache_same_name_cards_for_equivalents(db, source_card)
+    source_card = db.query(Card).filter(Card.id == source_card.id).first()
+    if not source_card or not source_card.playable_fingerprint:
+        return None
+
+    candidates = db.query(Card).options(joinedload(Card.set_ref)).filter(
+        Card.playable_fingerprint == source_card.playable_fingerprint,
+        Card.lang == (source_card.lang or "en"),
+        Card.is_custom.is_(False),
+    ).all()
+    priced_candidates = [(card, _price_sort_value(card)) for card in candidates]
+    priced_candidates = [(card, price) for card, price in priced_candidates if price is not None]
+    if not priced_candidates:
+        return None
+    return min(priced_candidates, key=lambda item: (item[1], item[0].set_id or "", item[0].number or ""))[0]
+
+
+def _build_print_optimization_preview(db: Session, binder: Binder) -> dict:
+    binder_type = binder.binder_type or "collection"
+    if binder_type != "wishlist":
+        raise HTTPException(status_code=400, detail="Print optimization is available for wishlist binders")
+
+    binder_cards = db.query(BinderCard).options(
+        joinedload(BinderCard.card).joinedload(Card.set_ref),
+    ).filter(BinderCard.binder_id == binder.id).order_by(BinderCard.added_at.desc()).all()
+
+    recommendations = []
+    candidate_cache: dict[str, Card | None] = {}
+    for bc in binder_cards:
+        if not bc.card:
+            continue
+        source_card = _ensure_card_gameplay_data(db, bc.card)
+        if not source_card or not source_card.playable_fingerprint:
+            continue
+        cache_key = f"{source_card.lang or 'en'}:{source_card.playable_fingerprint}"
+        if cache_key not in candidate_cache:
+            candidate_cache[cache_key] = _cheapest_equivalent_candidate(db, source_card)
+        candidate = candidate_cache[cache_key]
+        if not candidate or candidate.id == bc.card_id:
+            continue
+
+        current_price = _price_sort_value(source_card)
+        suggested_price = _price_sort_value(candidate)
+        if current_price is None or suggested_price is None:
+            continue
+        if suggested_price >= current_price:
+            continue
+
+        required_quantity = _safe_required_quantity(bc.required_quantity)
+        savings_per_copy = current_price - suggested_price
+        recommendations.append({
+            "binder_card_id": bc.id,
+            "required_quantity": required_quantity,
+            "current": _binder_card_summary(source_card, owned_quantity=0, is_current=True),
+            "suggested": _binder_card_summary(candidate, owned_quantity=0, is_current=False),
+            "current_price": current_price,
+            "suggested_price": suggested_price,
+            "savings_per_copy": round(savings_per_copy, 2),
+            "total_savings": round(savings_per_copy * required_quantity, 2),
+        })
+
+    total_savings = sum(item["total_savings"] for item in recommendations)
+    return {
+        "binder_id": binder.id,
+        "mode": "cheapest",
+        "recommendations": recommendations,
+        "change_count": len(recommendations),
+        "total_savings": round(total_savings, 2),
+    }
+
+
 @router.get("/", response_model=List[BinderResponse])
 def get_binders(
     current_user: User = Depends(get_current_user),
@@ -410,6 +491,82 @@ def get_binder_cards(
         "current_value": round(current_value, 2),
         "cost_to_complete": round(cost_to_complete, 2),
         "unavailable_collection_item_ids": unavailable_collection_item_ids,
+    }
+
+
+@router.get("/{binder_id}/optimize-prints")
+def preview_binder_print_optimization(
+    binder_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Preview cheapest playable-equivalent print replacements for a wishlist binder."""
+    binder = db.query(Binder).filter(
+        Binder.id == binder_id,
+        Binder.user_id == current_user.id,
+    ).first()
+    if not binder:
+        raise HTTPException(status_code=404, detail="Binder not found")
+    return _build_print_optimization_preview(db, binder)
+
+
+@router.post("/{binder_id}/optimize-prints")
+def apply_binder_print_optimization(
+    binder_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Apply cheapest playable-equivalent print replacements after preview."""
+    binder = db.query(Binder).filter(
+        Binder.id == binder_id,
+        Binder.user_id == current_user.id,
+    ).first()
+    if not binder:
+        raise HTTPException(status_code=404, detail="Binder not found")
+
+    preview = _build_print_optimization_preview(db, binder)
+    applied = 0
+    skipped = 0
+    applied_total_savings = 0.0
+    for recommendation in preview["recommendations"]:
+        binder_card_id = recommendation["binder_card_id"]
+        target_card_id = recommendation["suggested"]["id"]
+        bc = db.query(BinderCard).filter(
+            BinderCard.id == binder_card_id,
+            BinderCard.binder_id == binder_id,
+            BinderCard.collection_item_id.is_(None),
+        ).first()
+        if not bc or bc.card_id == target_card_id:
+            skipped += 1
+            continue
+
+        existing = db.query(BinderCard).filter(
+            BinderCard.binder_id == binder_id,
+            BinderCard.card_id == target_card_id,
+            BinderCard.collection_item_id.is_(None),
+            BinderCard.id != bc.id,
+        ).first()
+        if existing:
+            combined_quantity = (existing.required_quantity or 1) + (bc.required_quantity or 1)
+            if combined_quantity > 99:
+                skipped += 1
+                continue
+            existing.required_quantity = combined_quantity
+            db.delete(bc)
+            applied += 1
+            applied_total_savings += recommendation["total_savings"]
+            continue
+
+        bc.card_id = target_card_id
+        applied += 1
+        applied_total_savings += recommendation["total_savings"]
+
+    db.commit()
+    return {
+        "message": "Print optimization applied",
+        "applied": applied,
+        "skipped": skipped,
+        "total_savings": round(applied_total_savings, 2),
     }
 
 

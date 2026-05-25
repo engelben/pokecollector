@@ -115,6 +115,8 @@ export const addCardToBinder = (binderId, cardId) => api.post(`/binders/${binder
 export const addCollectionItemToBinder = (binderId, collectionItemId) => api.post(`/binders/${binderId}/collection-items?collection_item_id=${collectionItemId}`)
 export const updateBinderEntry = (binderId, binderCardId, data) => api.put(`/binders/${binderId}/entries/${binderCardId}`, data)
 export const getBinderEntryEquivalentPrints = (binderId, binderCardId) => api.get(`/binders/${binderId}/entries/${binderCardId}/equivalent-prints`).then(r => r.data)
+export const getBinderPrintOptimization = (binderId) => api.get(`/binders/${binderId}/optimize-prints`).then(r => r.data)
+export const applyBinderPrintOptimization = (binderId) => api.post(`/binders/${binderId}/optimize-prints`).then(r => r.data)
 export const switchBinderEntryCard = (binderId, binderCardId, cardId, collectionItemId = null) => api.put(`/binders/${binderId}/entries/${binderCardId}/card`, { card_id: cardId, collection_item_id: collectionItemId }).then(r => r.data)
 export const addBinderEntryToWishlist = (binderId, binderCardId) => api.post(`/binders/${binderId}/entries/${binderCardId}/wishlist`)
 export const addBinderCardsToWishlist = (binderId) => api.post(`/binders/${binderId}/wishlist`).then(r => r.data)
