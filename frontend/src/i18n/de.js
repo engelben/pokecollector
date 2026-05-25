@@ -895,6 +895,8 @@ const de = {
     addAllShort: 'Alle hinzufügen',
     added: 'hinzugefügt',
     skipped: 'übersprungen',
+    noPriceData: 'Keine Preisdaten',
+    noPriceDataShort: 'Kein Preis',
   },
 
   // Navigation (social)

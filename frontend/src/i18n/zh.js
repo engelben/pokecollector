@@ -891,6 +891,8 @@ const zh = {
     addAllShort: '全部添加',
     added: '已添加',
     skipped: '已跳过',
+    noPriceData: '无价格数据',
+    noPriceDataShort: '无价格',
   },
 
   // Leaderboard

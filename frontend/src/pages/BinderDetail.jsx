@@ -277,6 +277,8 @@ export default function BinderDetail() {
   const missingCount = data?.missing_count ?? cards.reduce((sum, c) => sum + (c.missing_quantity || 0), 0)
   const binderValue = data?.binder_value ?? cards.reduce((sum, c) => sum + ((c.price_market || 0) * (isWishlist ? (c.required_quantity || 1) : (c.quantity || 0))), 0)
   const costToComplete = data?.cost_to_complete ?? cards.reduce((sum, c) => sum + ((c.price_market || 0) * (c.missing_quantity || 0)), 0)
+  const displayedValue = isWishlist ? costToComplete : binderValue
+  const hasMissingPriceData = cards.length > 0 && displayedValue === 0 && (!isWishlist || missingCount > 0) && cards.some(c => !c.price_market || c.price_market <= 0)
   const progressPct = totalCount > 0 ? Math.round((ownedCount / totalCount) * 100) : 0
   const binderSets = [...new Set(cards.map(c => c.set_name || c.set_id).filter(Boolean))].sort()
   const visibleCards = cards.filter(card => {
@@ -368,7 +370,12 @@ export default function BinderDetail() {
         <div className="card p-3"><p className="text-xs text-text-muted">{t('binderTypes.required')}</p><p className="text-lg font-bold text-text-primary">{totalCount}</p></div>
         <div className="card p-3"><p className="text-xs text-text-muted">{t('binderTypes.owned')}</p><p className="text-lg font-bold text-green">{ownedCount}</p></div>
         <div className="card p-3"><p className="text-xs text-text-muted">{t('binderTypes.missing')}</p><p className="text-lg font-bold text-brand-red">{missingCount}</p></div>
-        <div className="card p-3"><p className="text-xs text-text-muted">{isWishlist ? t('binderTypes.costToComplete') : t('binderTypes.binderValue')}</p><p className="text-lg font-bold text-yellow">€{(isWishlist ? costToComplete : binderValue).toFixed(2)}</p></div>
+        <div className="card p-3">
+          <p className="text-xs text-text-muted">{isWishlist ? t('binderTypes.costToComplete') : t('binderTypes.binderValue')}</p>
+          <p className={`text-lg font-bold ${hasMissingPriceData ? 'text-text-muted' : 'text-yellow'}`}>
+            {hasMissingPriceData ? t('binderTypes.noPriceData') : `€${displayedValue.toFixed(2)}`}
+          </p>
+        </div>
       </div>
 
       {(binder?.format || isWishlist) && (
@@ -562,7 +569,11 @@ export default function BinderDetail() {
                 )}
                 <div className="p-1.5">
                   <p className="text-xs text-text-primary font-medium truncate">{card.name}</p>
-                  {card.price_market && <p className="text-xs text-green">€{card.price_market.toFixed(2)}</p>}
+                  {card.price_market > 0 ? (
+                    <p className="text-xs text-green">€{card.price_market.toFixed(2)}</p>
+                  ) : (
+                    <p className="text-xs text-text-muted">{t('binderTypes.noPriceDataShort')}</p>
+                  )}
                 </div>
 
                 {isWishlist && (
@@ -630,7 +641,13 @@ export default function BinderDetail() {
                   ) : (
                     <p className="text-xs text-text-muted">{t('binderTypes.collectionQuantityLocked')}</p>
                   )}
-                  {selectedCard.price_market && <p className="text-xs text-text-muted">{t('binderTypes.marketPrice')}: <span className="text-green font-semibold">€{selectedCard.price_market.toFixed(2)}</span></p>}
+                  <p className="text-xs text-text-muted">
+                    {t('binderTypes.marketPrice')}: {selectedCard.price_market > 0 ? (
+                      <span className="text-green font-semibold">€{selectedCard.price_market.toFixed(2)}</span>
+                    ) : (
+                      <span>{t('binderTypes.noPriceData')}</span>
+                    )}
+                  </p>
                   {(selectedCard.variant || selectedCard.condition) && <p className="text-xs text-text-muted">{[selectedCard.variant, selectedCard.condition].filter(Boolean).join(' · ')}</p>}
                 </div>
               </div>

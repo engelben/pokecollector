@@ -895,6 +895,8 @@ const en = {
     addAllShort: 'Add all',
     added: 'added',
     skipped: 'skipped',
+    noPriceData: 'No price data',
+    noPriceDataShort: 'No price',
   },
   // Leaderboard
   leaderboard: {
