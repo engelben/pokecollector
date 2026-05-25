@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Plus, Trash2, Package, Star, Download, Upload, X, Heart, Minus } from 'lucide-react'
-import { getBinderCards, removeCardFromBinder, removeBinderEntry, addCardToBinder, addCollectionItemToBinder, searchCards, getCollection, updateBinderEntry, addBinderEntryToWishlist, addBinderCardsToWishlist, importBinderCsv, exportBinderCsv } from '../api/client'
+import { getBinderCards, removeCardFromBinder, removeBinderEntry, addCardToBinder, addCollectionItemToBinder, searchCards, getCollection, updateBinderEntry, getBinderEntryEquivalentPrints, switchBinderEntryCard, addBinderEntryToWishlist, addBinderCardsToWishlist, importBinderCsv, exportBinderCsv } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import toast from 'react-hot-toast'
 import { useTilt } from '../hooks/useTilt'
@@ -285,6 +285,23 @@ export default function BinderDetail() {
   const exportMutation = useMutation({
     mutationFn: () => exportBinderCsv(parseInt(binderId)),
     onError: () => toast.error('CSV export failed'),
+  })
+
+  const { data: equivalentPrintsData, isLoading: equivalentPrintsLoading } = useQuery({
+    queryKey: ['binder-entry-equivalents', binderId, selectedCard?.binder_card_id],
+    queryFn: () => getBinderEntryEquivalentPrints(parseInt(binderId), selectedCard.binder_card_id),
+    enabled: isWishlist && !!selectedCard?.binder_card_id,
+  })
+
+  const switchPrintMutation = useMutation({
+    mutationFn: ({ binderCardId, cardId }) => switchBinderEntryCard(parseInt(binderId), binderCardId, cardId),
+    onSuccess: () => {
+      toast.success(t('binderTypes.printSwitched') + ' ✓')
+      queryClient.invalidateQueries({ queryKey: ['binder-cards', binderId] })
+      queryClient.invalidateQueries({ queryKey: ['binders'] })
+      setSelectedCard(null)
+    },
+    onError: (e) => toast.error(e.response?.data?.detail || t('binderTypes.printSwitchFailed')),
   })
 
   if (isLoading) return <div className="skeleton h-64 rounded-xl" />
@@ -675,6 +692,53 @@ export default function BinderDetail() {
                   {(selectedCard.variant || selectedCard.condition) && <p className="text-xs text-text-muted">{[selectedCard.variant, selectedCard.condition].filter(Boolean).join(' · ')}</p>}
                 </div>
               </div>
+
+              {isWishlist && (
+                <div className="rounded-xl bg-bg-card/60 p-3 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-text-primary">{t('binderTypes.equivalentPrints')}</p>
+                      <p className="text-xs text-text-muted">{t('binderTypes.equivalentPrintsHelp')}</p>
+                    </div>
+                    {equivalentPrintsLoading && <span className="text-xs text-text-muted">{t('common.loading')}</span>}
+                  </div>
+
+                  {!equivalentPrintsLoading && (equivalentPrintsData?.equivalents || []).length === 0 && (
+                    <p className="text-xs text-text-muted">{t('binderTypes.noEquivalentPrints')}</p>
+                  )}
+
+                  {(equivalentPrintsData?.equivalents || []).length > 0 && (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {equivalentPrintsData.equivalents.map((print) => (
+                        <div key={print.id} className={`flex items-center gap-3 rounded-lg border p-2 ${print.is_current ? 'border-yellow/40 bg-yellow/5' : 'border-border bg-bg/40'}`}>
+                          {resolveCardImageUrl(print) ? (
+                            <img src={resolveCardImageUrl(print)} alt={print.name} className="w-10 aspect-[2.5/3.5] object-cover rounded" loading="lazy" />
+                          ) : (
+                            <div className="w-10 aspect-[2.5/3.5] rounded bg-bg-elevated flex items-center justify-center text-[9px] text-text-muted text-center px-1">{print.name}</div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-text-primary truncate">{print.set_name || print.set_id} #{print.number}</p>
+                            <div className="flex items-center gap-2 flex-wrap text-[11px] text-text-muted">
+                              {print.rarity && <span>{print.rarity}</span>}
+                              <span>{print.price_market > 0 ? `€${print.price_market.toFixed(2)}` : t('binderTypes.noPriceDataShort')}</span>
+                              {print.owned && <span className="text-green font-semibold">{t('binderTypes.owned')} {print.owned_quantity}x</span>}
+                              {print.is_current && <span className="text-yellow font-semibold">{t('binderTypes.currentPrint')}</span>}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn-ghost px-2 py-1 text-xs flex-shrink-0"
+                            disabled={print.is_current || switchPrintMutation.isPending}
+                            onClick={() => switchPrintMutation.mutate({ binderCardId: selectedCard.binder_card_id, cardId: print.id })}
+                          >
+                            {print.is_current ? t('binderTypes.currentPrint') : t('binderTypes.switchPrint')}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button className="btn-ghost justify-center" onClick={() => wishlistMutation.mutate(selectedCard.binder_card_id)}>

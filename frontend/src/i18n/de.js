@@ -919,6 +919,13 @@ const de = {
     skipped: 'übersprungen',
     noPriceData: 'Keine Preisdaten',
     noPriceDataShort: 'Kein Preis',
+    equivalentPrints: 'Gleichwertige Drucke',
+    equivalentPrintsHelp: 'Gleiche spielbare Karte, zuerst eigene Exemplare und dann nach Preis sortiert.',
+    noEquivalentPrints: 'Noch keine gleichwertigen Drucke gefunden.',
+    currentPrint: 'Aktuell',
+    switchPrint: 'Wechseln',
+    printSwitched: 'Druck gewechselt',
+    printSwitchFailed: 'Druck konnte nicht gewechselt werden',
   },
 
   // Navigation (social)

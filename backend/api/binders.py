@@ -7,8 +7,11 @@ from typing import List
 from api.auth import get_current_user
 from database import get_db
 from models import Binder, BinderCard, Card, CollectionItem, User, WishlistItem
-from schemas import BinderCreate, BinderUpdate, BinderResponse, BinderCardUpdate
+from schemas import BinderCreate, BinderUpdate, BinderResponse, BinderCardUpdate, BinderCardSwitch
 from api.collection import ensure_card_exists, _find_card_by_code
+from services import pokemon_api
+from services.card_fallbacks import apply_cross_language_fallbacks
+from services.card_upsert import upsert_card
 from services.card_values import effective_market_price
 import datetime
 import csv
@@ -76,6 +79,93 @@ def _binder_response(binder: Binder, card_count: int = 0) -> BinderResponse:
         created_at=binder.created_at,
         card_count=card_count,
     )
+
+
+def _ensure_card_gameplay_data(db: Session, card: Card | None) -> Card | None:
+    """Fetch full TCGdex card data when a local card has no playable fingerprint yet."""
+    if not card or card.is_custom or card.playable_fingerprint or not card.tcg_card_id:
+        return card
+
+    lang = card.lang or "en"
+    try:
+        card_data = pokemon_api.get_card(card.tcg_card_id, lang=lang)
+        if not card_data:
+            return card
+        parsed = pokemon_api.parse_card_for_db(card_data, lang=lang)
+        parsed = apply_cross_language_fallbacks(db, parsed)
+        updated = upsert_card(db, parsed)
+        db.commit()
+        db.refresh(updated)
+        return updated
+    except Exception:
+        logger.exception("Failed to hydrate gameplay data for card_id=%s lang=%s", card.id, lang)
+        db.rollback()
+        return db.query(Card).filter(Card.id == card.id).first()
+
+
+def _cache_same_name_cards_for_equivalents(db: Session, source_card: Card) -> None:
+    """Cache full same-name cards so equivalent-print lookup can compare fingerprints."""
+    if not source_card.name or not source_card.lang:
+        return
+    try:
+        results = pokemon_api.search_cards(
+            name=source_card.name,
+            lang=source_card.lang,
+            page=1,
+            page_size=50000,
+        ).get("data", [])
+    except Exception:
+        logger.exception("Failed to search TCGdex same-name cards for %s", source_card.name)
+        return
+
+    exact_name = source_card.name.strip().lower()
+    fetched = 0
+    for candidate in results:
+        if (candidate.get("name") or "").strip().lower() != exact_name:
+            continue
+        tcg_card_id = candidate.get("id")
+        if not tcg_card_id:
+            continue
+        db_id = f"{tcg_card_id}_{source_card.lang}"
+        local = db.query(Card).filter(Card.id == db_id).first()
+        if local and local.playable_fingerprint:
+            continue
+        try:
+            detail = pokemon_api.get_card(tcg_card_id, lang=source_card.lang)
+            if not detail:
+                continue
+            parsed = pokemon_api.parse_card_for_db(detail, lang=source_card.lang)
+            parsed = apply_cross_language_fallbacks(db, parsed)
+            upsert_card(db, parsed)
+            db.commit()
+            fetched += 1
+            if fetched >= 80:
+                break
+        except Exception:
+            logger.exception("Failed to cache equivalent-print candidate %s", tcg_card_id)
+            db.rollback()
+
+
+def _binder_card_summary(card: Card, owned_quantity: int, is_current: bool = False) -> dict:
+    price = effective_market_price(card, None) or 0
+    return {
+        "id": card.id,
+        "name": card.name,
+        "set_id": card.set_id,
+        "set_name": card.set_ref.name if card.set_ref else None,
+        "number": card.number,
+        "rarity": card.rarity,
+        "images_small": card.images_small,
+        "images_large": card.images_large,
+        "custom_image_url": card.custom_image_url,
+        "lang": card.lang or "en",
+        "price_market": price,
+        "price_low": card.price_low,
+        "price_trend": card.price_trend,
+        "owned_quantity": int(owned_quantity or 0),
+        "owned": bool(owned_quantity),
+        "is_current": is_current,
+    }
 
 
 @router.get("/", response_model=List[BinderResponse])
@@ -424,6 +514,130 @@ def update_binder_entry(
     bc.required_quantity = _safe_required_quantity(update.required_quantity)
     db.commit()
     return {"message": "Binder entry updated"}
+
+
+@router.get("/{binder_id}/entries/{binder_card_id}/equivalent-prints")
+def get_binder_entry_equivalent_prints(
+    binder_id: int,
+    binder_card_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return playable-equivalent prints for one binder entry, owned first then cheapest."""
+    binder = db.query(Binder).filter(
+        Binder.id == binder_id,
+        Binder.user_id == current_user.id,
+    ).first()
+    if not binder:
+        raise HTTPException(status_code=404, detail="Binder not found")
+    if (binder.binder_type or "collection") != "wishlist":
+        raise HTTPException(status_code=400, detail="Equivalent prints are available for wishlist binders")
+
+    bc = db.query(BinderCard).options(joinedload(BinderCard.card)).filter(
+        BinderCard.id == binder_card_id,
+        BinderCard.binder_id == binder_id,
+    ).first()
+    if not bc or not bc.card:
+        raise HTTPException(status_code=404, detail="Binder entry not found")
+
+    source_card = _ensure_card_gameplay_data(db, bc.card)
+    if not source_card or not source_card.playable_fingerprint:
+        return {"source_card_id": bc.card_id, "equivalents": [], "message": "No playable fingerprint available"}
+
+    _cache_same_name_cards_for_equivalents(db, source_card)
+    source_card = db.query(Card).filter(Card.id == source_card.id).first()
+    if not source_card or not source_card.playable_fingerprint:
+        return {"source_card_id": bc.card_id, "equivalents": [], "message": "No playable fingerprint available"}
+
+    collection_quantities = dict(
+        db.query(CollectionItem.card_id, func.coalesce(func.sum(CollectionItem.quantity), 0))
+        .filter(CollectionItem.user_id == current_user.id)
+        .group_by(CollectionItem.card_id)
+        .all()
+    )
+
+    candidates = db.query(Card).options(joinedload(Card.set_ref)).filter(
+        Card.playable_fingerprint == source_card.playable_fingerprint,
+        Card.lang == (source_card.lang or "en"),
+        Card.is_custom.is_(False),
+    ).all()
+
+    summaries = [
+        _binder_card_summary(
+            card,
+            owned_quantity=collection_quantities.get(card.id, 0),
+            is_current=card.id == bc.card_id,
+        )
+        for card in candidates
+    ]
+    summaries.sort(key=lambda item: (
+        not item["owned"],
+        item["price_market"] <= 0,
+        item["price_market"] if item["price_market"] > 0 else 999999,
+        item["set_name"] or item["set_id"] or "",
+        item["number"] or "",
+    ))
+
+    return {"source_card_id": bc.card_id, "equivalents": summaries}
+
+
+@router.put("/{binder_id}/entries/{binder_card_id}/card")
+def switch_binder_entry_card(
+    binder_id: int,
+    binder_card_id: int,
+    update: BinderCardSwitch,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Manually switch a wishlist binder entry to a playable-equivalent print."""
+    binder = db.query(Binder).filter(
+        Binder.id == binder_id,
+        Binder.user_id == current_user.id,
+    ).first()
+    if not binder:
+        raise HTTPException(status_code=404, detail="Binder not found")
+    if (binder.binder_type or "collection") != "wishlist":
+        raise HTTPException(status_code=400, detail="Equivalent print switching is available for wishlist binders")
+
+    bc = db.query(BinderCard).options(joinedload(BinderCard.card)).filter(
+        BinderCard.id == binder_card_id,
+        BinderCard.binder_id == binder_id,
+    ).first()
+    if not bc or not bc.card:
+        raise HTTPException(status_code=404, detail="Binder entry not found")
+
+    target_card = db.query(Card).filter(Card.id == update.card_id).first()
+    if not target_card:
+        _, detected_lang = pokemon_api.strip_lang_suffix(update.card_id)
+        target_card = ensure_card_exists(db, update.card_id, lang=detected_lang or "en")
+
+    source_card = _ensure_card_gameplay_data(db, bc.card)
+    target_card = _ensure_card_gameplay_data(db, target_card)
+    if not source_card or not target_card or not source_card.playable_fingerprint or not target_card.playable_fingerprint:
+        raise HTTPException(status_code=400, detail="Playable card data is not available for this switch")
+    if source_card.playable_fingerprint != target_card.playable_fingerprint:
+        raise HTTPException(status_code=400, detail="Selected card is not a playable-equivalent print")
+    if target_card.id == bc.card_id:
+        return {"message": "Binder entry already uses this print", "binder_card_id": bc.id, "merged": False}
+
+    existing = db.query(BinderCard).filter(
+        BinderCard.binder_id == binder_id,
+        BinderCard.card_id == target_card.id,
+        BinderCard.collection_item_id.is_(None),
+        BinderCard.id != bc.id,
+    ).first()
+    if existing:
+        combined_quantity = (existing.required_quantity or 1) + (bc.required_quantity or 1)
+        if combined_quantity > 99:
+            raise HTTPException(status_code=400, detail="Switching would exceed the maximum required quantity of 99")
+        existing.required_quantity = combined_quantity
+        db.delete(bc)
+        db.commit()
+        return {"message": "Binder entries merged", "binder_card_id": existing.id, "merged": True}
+
+    bc.card_id = target_card.id
+    db.commit()
+    return {"message": "Binder entry switched", "binder_card_id": bc.id, "merged": False}
 
 
 @router.post("/{binder_id}/entries/{binder_card_id}/wishlist")

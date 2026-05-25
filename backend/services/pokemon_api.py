@@ -1,5 +1,6 @@
 import httpx
 from typing import Optional, Dict, Any, List
+from services.card_gameplay import playable_fingerprint
 
 TCGDEX_BASE = "https://api.tcgdex.net/v2"
 
@@ -344,6 +345,11 @@ def parse_card_for_db(card_data: Dict, default_set_id: Optional[str] = None, lan
     db_id = f"{tcgdex_id}_{card_lang}"
 
     variants = card_data.get("variants") or {}
+    retreat_raw = card_data.get("retreat")
+    try:
+        retreat = int(retreat_raw) if retreat_raw is not None else None
+    except (TypeError, ValueError):
+        retreat = None
 
     return {
         "id": db_id,
@@ -362,6 +368,19 @@ def parse_card_for_db(card_data: Dict, default_set_id: Optional[str] = None, lan
         "image_source_lang": None,
         "data_source_lang": None,
         "lang": card_lang,
+        "stage": card_data.get("stage"),
+        "evolve_from": card_data.get("evolveFrom"),
+        "suffix": card_data.get("suffix"),
+        "trainer_type": card_data.get("trainerType"),
+        "energy_type": card_data.get("energyType"),
+        "card_effect": card_data.get("effect"),
+        "regulation_mark": card_data.get("regulationMark"),
+        "attacks": card_data.get("attacks"),
+        "abilities": card_data.get("abilities"),
+        "weaknesses": card_data.get("weaknesses"),
+        "resistances": card_data.get("resistances"),
+        "retreat": retreat,
+        "playable_fingerprint": playable_fingerprint(card_data),
         "variants_normal": variants.get("normal"),
         "variants_reverse": variants.get("reverse"),
         "variants_holo": variants.get("holo"),

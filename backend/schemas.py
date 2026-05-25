@@ -34,6 +34,19 @@ class CardBase(BaseModel):
     subtypes: Optional[List[str]] = None
     hp: Optional[str] = None
     artist: Optional[str] = None
+    stage: Optional[str] = None
+    evolve_from: Optional[str] = None
+    suffix: Optional[str] = None
+    trainer_type: Optional[str] = None
+    energy_type: Optional[str] = None
+    card_effect: Optional[str] = None
+    regulation_mark: Optional[str] = None
+    attacks: Optional[List[Any]] = None
+    abilities: Optional[List[Any]] = None
+    weaknesses: Optional[List[Any]] = None
+    resistances: Optional[List[Any]] = None
+    retreat: Optional[int] = None
+    playable_fingerprint: Optional[str] = None
     images_small: Optional[str] = None
     images_large: Optional[str] = None
     image_source_lang: Optional[str] = None
@@ -209,6 +222,10 @@ class BinderUpdate(BaseModel):
 
 class BinderCardUpdate(BaseModel):
     required_quantity: int
+
+
+class BinderCardSwitch(BaseModel):
+    card_id: str
 
 
 class BinderResponse(BaseModel):

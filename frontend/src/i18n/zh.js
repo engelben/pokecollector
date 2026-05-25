@@ -918,6 +918,13 @@ const zh = {
     skipped: '已跳过',
     noPriceData: '无价格数据',
     noPriceDataShort: '无价格',
+    equivalentPrints: '等效版本',
+    equivalentPrintsHelp: '相同可用卡牌，优先显示已拥有，其次按价格排序。',
+    noEquivalentPrints: '尚未找到等效版本。',
+    currentPrint: '当前',
+    switchPrint: '切换',
+    printSwitched: '版本已切换',
+    printSwitchFailed: '无法切换版本',
   },
 
   // Leaderboard

@@ -214,6 +214,21 @@ def _run_migrations(conn):
         "ALTER TABLE binder_cards ADD COLUMN IF NOT EXISTS collection_item_id INTEGER REFERENCES collection(id)",
         "ALTER TABLE binders ADD COLUMN IF NOT EXISTS format VARCHAR",
         "ALTER TABLE binder_cards ADD COLUMN IF NOT EXISTS required_quantity INTEGER DEFAULT 1",
+        # v47: Store gameplay data for playable-equivalent print matching.
+        "ALTER TABLE cards ADD COLUMN IF NOT EXISTS stage VARCHAR",
+        "ALTER TABLE cards ADD COLUMN IF NOT EXISTS evolve_from VARCHAR",
+        "ALTER TABLE cards ADD COLUMN IF NOT EXISTS suffix VARCHAR",
+        "ALTER TABLE cards ADD COLUMN IF NOT EXISTS trainer_type VARCHAR",
+        "ALTER TABLE cards ADD COLUMN IF NOT EXISTS energy_type VARCHAR",
+        "ALTER TABLE cards ADD COLUMN IF NOT EXISTS card_effect VARCHAR",
+        "ALTER TABLE cards ADD COLUMN IF NOT EXISTS regulation_mark VARCHAR",
+        "ALTER TABLE cards ADD COLUMN IF NOT EXISTS attacks JSON",
+        "ALTER TABLE cards ADD COLUMN IF NOT EXISTS abilities JSON",
+        "ALTER TABLE cards ADD COLUMN IF NOT EXISTS weaknesses JSON",
+        "ALTER TABLE cards ADD COLUMN IF NOT EXISTS resistances JSON",
+        "ALTER TABLE cards ADD COLUMN IF NOT EXISTS retreat INTEGER",
+        "ALTER TABLE cards ADD COLUMN IF NOT EXISTS playable_fingerprint VARCHAR",
+        "CREATE INDEX IF NOT EXISTS idx_cards_playable_fingerprint ON cards(playable_fingerprint)",
         "UPDATE binder_cards SET required_quantity = 1 WHERE required_quantity IS NULL",
         """UPDATE binder_cards
            SET required_quantity = 1

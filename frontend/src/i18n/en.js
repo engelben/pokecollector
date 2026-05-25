@@ -919,6 +919,13 @@ const en = {
     skipped: 'skipped',
     noPriceData: 'No price data',
     noPriceDataShort: 'No price',
+    equivalentPrints: 'Equivalent prints',
+    equivalentPrintsHelp: 'Same playable card, sorted by owned copies first and then price.',
+    noEquivalentPrints: 'No equivalent prints found yet.',
+    currentPrint: 'Current',
+    switchPrint: 'Switch',
+    printSwitched: 'Print switched',
+    printSwitchFailed: 'Could not switch print',
   },
   // Leaderboard
   leaderboard: {
