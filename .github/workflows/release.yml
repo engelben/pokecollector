@@ -15,10 +15,15 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Checkout repository
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git init .
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --force --tags origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
 
       - name: Check version consistency
         run: node scripts/check-version.mjs
@@ -35,7 +40,7 @@ jobs:
         id: existing_tag
         shell: bash
         run: |
-          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+          if git rev-parse --verify --quiet "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
