@@ -8,7 +8,7 @@ This document reflects the current code layout under `/tmp/pokecollector`.
 |-------|-----------|------|
 | Frontend | React 18 + Vite + Tailwind CSS | 3000 |
 | Backend | FastAPI | 8000 |
-| Database | PostgreSQL 15 | 5432 |
+| Database | PostgreSQL 18 | 5432 |
 | External APIs | TCGdex, Gemini, Frankfurter, GitHub | external |
 | Containerization | Docker + docker compose | - |
 

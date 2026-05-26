@@ -222,6 +222,8 @@ If `include=full`, image cache is excluded unless `images` is also explicitly in
 
 ### Automatic Pre-upgrade Backup
 
+The backend image installs PostgreSQL 18 client tools so `pg_dump` can back up the default PostgreSQL 18 service and newer external PostgreSQL 18 servers. PostgreSQL requires `pg_dump` to be at least as new as the server major version.
+
 `backend/services/pre_upgrade_backup.py` runs before `init_db()` startup migrations.
 
 Behavior:
