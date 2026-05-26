@@ -312,6 +312,8 @@ This automatic backup is still only a safety net. Keep creating your own manual 
 
 PokéCollector now uses PostgreSQL 18 for Docker installs. Existing Docker installs that still have a PostgreSQL 15 data volume must run the one-time upgrade script before recreating the database container with PostgreSQL 18. PostgreSQL cannot upgrade a major-version data directory just by changing the Docker image.
 
+You do not need to install every intermediate PokéCollector app version first. Upgrade from your current PostgreSQL 15 install directly to this release: the script handles the database engine major-version upgrade, then the backend applies the app's cumulative startup migrations. Older installs that predate the recorded app-version setting are still treated as existing installs and backed up before those app migrations run.
+
 Create or verify a manual backup first while your current PostgreSQL 15 stack is still running:
 
 ```bash
