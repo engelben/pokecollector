@@ -16,9 +16,9 @@ Be kind. Be clear. Assume good intent. Keep feedback constructive.
 
 🌐 **Website:** [pokecollector.romerg.de](https://pokecollector.romerg.de/)
 
-![Version](https://img.shields.io/badge/version-v1.20.0-e3000b?style=flat-square) ![Dark Theme](https://img.shields.io/badge/theme-dark-1a1a2e?style=flat-square) ![TCGdex](https://img.shields.io/badge/card%20data-TCGdex-e3000b?style=flat-square) ![Docker](https://img.shields.io/badge/deploy-Docker-2496ed?style=flat-square) ![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?style=flat-square) ![React](https://img.shields.io/badge/frontend-React%2018-61dafb?style=flat-square) [![Ko-fi](https://img.shields.io/badge/support-Ko--fi-ff5e5b?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/gillesromer)
+![Version](https://img.shields.io/badge/version-v1.20.1-e3000b?style=flat-square) ![Dark Theme](https://img.shields.io/badge/theme-dark-1a1a2e?style=flat-square) ![TCGdex](https://img.shields.io/badge/card%20data-TCGdex-e3000b?style=flat-square) ![Docker](https://img.shields.io/badge/deploy-Docker-2496ed?style=flat-square) ![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?style=flat-square) ![React](https://img.shields.io/badge/frontend-React%2018-61dafb?style=flat-square) [![Ko-fi](https://img.shields.io/badge/support-Ko--fi-ff5e5b?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/gillesromer)
 
-**Current version:** `v1.20.0` · Releases are tracked on the [GitHub Releases page](https://github.com/Git-Romer/pokecollector/releases).
+**Current version:** `v1.20.1` · Releases are tracked on the [GitHub Releases page](https://github.com/Git-Romer/pokecollector/releases).
 
 ![WebApp Preview](preview-homescreen.png)
 
@@ -294,11 +294,26 @@ All settings are persisted in the database and edited in the Settings UI.
 |---------|---------|-------|
 | Language | `de` | `de`, `en`, `zh` |
 | Currency | `EUR` | Per-user |
-| Primary Price | `trend` | Per-user |
+| Primary Price | `trend` | Per-user. Options: `trend`, `avg`, `avg1`, `avg7`, `avg30`, `low` |
 | Multi-User Mode | `false` | Admin-only toggle |
 | Theme | `default` | Stored in browser local storage |
 | Price Sync Interval | `30` minutes | Admin-only |
 | Full Sync Interval | `5` days | Admin-only |
+
+### Cardmarket price fields
+
+Card prices come from the TCGdex API's Cardmarket price data and are stored in EUR. The selected primary price controls collection totals, dashboard values, analytics, binders, social stats, exports, and alerts. Currency conversion is display-only when USD is selected.
+
+| Option | Cardmarket field | Meaning |
+|--------|------------------|---------|
+| Trend | `trend` / `trend-holo` | Cardmarket trend price; closest available field to a current market value, but still an aggregated API value, not a live listing price. |
+| Average | `avg` / `avg-holo` | Cardmarket average sell price. This is stable and close to the historical app behavior. |
+| Avg 1 Day | `avg1` / `avg1-holo` | Average over the last day; very recent, but can be noisy when few sales exist. |
+| Avg 7 Days | `avg7` / `avg7-holo` | Average over the last seven days; smoother recent value. |
+| Avg 30 Days | `avg30` / `avg30-holo` | Average over the last 30 days; stable, slower to react. |
+| Low | `low` / `low-holo` | Lowest Cardmarket price; useful as a conservative value, often below realistic collection value. |
+
+For holo and reverse-holo collection items, PokéCollector uses the matching `*-holo` field when available. If TCGdex reports a holo price as `0` or missing, PokéCollector treats it as unavailable and falls back to the selected non-holo Cardmarket field, then to the Cardmarket average, instead of valuing the card at €0.
 
 ---
 

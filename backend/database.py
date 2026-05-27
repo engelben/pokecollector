@@ -26,7 +26,7 @@ def get_db():
 
 DEFAULT_SETTINGS = {
     "language": "de",
-    "price_display": '["trend", "avg1", "avg7", "avg30", "low"]',
+    "price_display": '["trend", "avg", "avg1", "avg7", "avg30", "low"]',
     "price_primary": "trend",
     "multi_user_mode": "false",
     "tcgdex_sync_languages": "en,de",

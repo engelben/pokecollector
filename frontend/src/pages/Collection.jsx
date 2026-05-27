@@ -49,16 +49,6 @@ const VARIANT_COLORS = {
 }
 
 
-const HOLO_VARIANTS = new Set(['Holo', 'Holo Rare', 'Holo V', 'Holo VMAX', 'Holo VSTAR', 'Holo ex', 'Reverse Holo'])
-const HOLO_FIELD_MAP = {
-  price_market: 'price_market_holo',
-  price_trend: 'price_trend_holo',
-  price_avg1: 'price_avg1_holo',
-  price_avg7: 'price_avg7_holo',
-  price_avg30: 'price_avg30_holo',
-  price_low: 'price_low_holo',
-}
-
 const CSV_IMPORT_HEADER = 'set_code,number,quantity,condition,variant,lang,purchase_price'
 const CSV_IMPORT_TEMPLATE = `${CSV_IMPORT_HEADER}\nASC,152,1,NM,Normal,en,\n`
 
@@ -803,14 +793,7 @@ export default function Collection() {
   }
 
   function getEffectivePrice(card, variant, primaryField = pricePrimaryField) {
-    if (!card) return 0
-    if (HOLO_VARIANTS.has(variant)) {
-      // Map primary field to its holo equivalent
-      const holoField = HOLO_FIELD_MAP[primaryField] ?? 'price_market_holo'
-      const holoVal = card[holoField]
-      if (holoVal != null) return holoVal
-    }
-    return card[primaryField] ?? card.price_market ?? 0
+    return getEffectiveCardPrice(card, variant, primaryField)
   }
 
   const rarities = useMemo(() => [...new Set(items.map(i => i.card?.rarity).filter(Boolean))].sort(), [items])

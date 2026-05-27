@@ -35,7 +35,7 @@ DEFAULT_SETTINGS = {
     "language": "de",
     "currency": "EUR",
     "price_primary": "trend",
-    "price_display": '["trend", "avg1", "avg7", "avg30", "low"]',
+    "price_display": '["trend", "avg", "avg1", "avg7", "avg30", "low"]',
     "tcgdex_sync_languages": "en,de",
     "cross_language_price_fallback": "true",
     "cross_language_image_fallback": "true",

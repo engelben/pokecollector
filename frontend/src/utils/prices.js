@@ -23,12 +23,32 @@ export function priceFieldFromPrimary(pricePrimary) {
   return PRICE_PRIMARY_TO_FIELD[pricePrimary] || 'price_trend'
 }
 
+function positivePrice(value) {
+  if (value == null) return null
+  const price = Number(value)
+  return Number.isFinite(price) && price > 0 ? price : null
+}
+
 export function getEffectiveCardPrice(card, variant, priceField = 'price_trend') {
   if (!card) return 0
   if (HOLO_VARIANTS.has(variant)) {
     const holoField = HOLO_FIELD_MAP[priceField]
-    const holoValue = holoField ? card[holoField] : null
-    if (holoValue != null) return Number(holoValue) || 0
+    const candidates = [
+      holoField ? card[holoField] : null,
+      card[priceField],
+      card.price_market_holo,
+      card.price_market,
+    ]
+    for (const candidate of candidates) {
+      const price = positivePrice(candidate)
+      if (price != null) return price
+    }
+    return 0
   }
-  return Number(card[priceField] ?? card.price_market ?? 0) || 0
+
+  for (const candidate of [card[priceField], card.price_market]) {
+    const price = positivePrice(candidate)
+    if (price != null) return price
+  }
+  return 0
 }

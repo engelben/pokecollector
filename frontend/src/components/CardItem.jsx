@@ -609,11 +609,12 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
     },
   })
 
-  const ALL_PRICE_KEYS = ['trend', 'avg1', 'avg7', 'avg30', 'low']
-  const ALL_HOLO_PRICE_KEYS = ['trend-holo', 'avg1-holo', 'avg7-holo', 'avg30-holo', 'low-holo']
+  const ALL_PRICE_KEYS = ['trend', 'avg', 'avg1', 'avg7', 'avg30', 'low']
+  const ALL_HOLO_PRICE_KEYS = ['trend-holo', 'avg-holo', 'avg1-holo', 'avg7-holo', 'avg30-holo', 'low-holo']
 
   const HOLO_PRICE_FIELD_MAP = {
     'trend-holo': 'price_trend_holo',
+    'avg-holo': 'price_market_holo',
     'avg1-holo': 'price_avg1_holo',
     'avg7-holo': 'price_avg7_holo',
     'avg30-holo': 'price_avg30_holo',

@@ -8,7 +8,7 @@ const translations = { de, en, zh }
 
 const DEFAULT_SETTINGS = {
   language: 'de',
-  price_display: '["trend", "avg1", "avg7", "avg30", "low"]',
+  price_display: '["trend", "avg", "avg1", "avg7", "avg30", "low"]',
   price_primary: 'trend',
   tcgdex_sync_languages: 'en,de',
   cross_language_price_fallback: 'true',
@@ -110,9 +110,9 @@ export function SettingsProvider({ children }) {
     try {
       const val = settings.price_display
       if (Array.isArray(val)) return val
-      return JSON.parse(val || '["trend", "avg1", "avg7", "avg30", "low"]')
+      return JSON.parse(val || '["trend", "avg", "avg1", "avg7", "avg30", "low"]')
     } catch {
-      return ['trend', 'avg1', 'avg7', 'avg30', 'low']
+      return ['trend', 'avg', 'avg1', 'avg7', 'avg30', 'low']
     }
   }, [settings.price_display])
 

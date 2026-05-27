@@ -723,6 +723,7 @@ export default function Settings() {
                   value={currentPriceType}
                   options={[
                     { value: 'trend', label: t('settings.priceTrend') },
+                    { value: 'avg', label: t('settings.priceAvg') },
                     { value: 'avg1', label: t('settings.priceAvg1') },
                     { value: 'avg7', label: t('settings.priceAvg7') },
                     { value: 'avg30', label: t('settings.priceAvg30') },

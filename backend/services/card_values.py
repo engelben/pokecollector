@@ -27,13 +27,42 @@ def normalize_price_field(price_field: str | None) -> str:
     return field if field in VALID_PRICE_FIELDS else "price_trend"
 
 
+def _positive_price(value) -> float | None:
+    """Return a usable Cardmarket price, treating missing/zero values as unavailable."""
+    if value is None:
+        return None
+    try:
+        price = float(value)
+    except (TypeError, ValueError):
+        return None
+    return price if price > 0 else None
+
+
 def effective_market_price(card, variant=None, price_field: str | None = "price_trend") -> float:
-    """Return the selected Cardmarket EUR price for a card, using holo prices for holo variants."""
+    """Return the selected Cardmarket EUR price for a card.
+
+    TCGdex/Cardmarket may report unavailable holo prices as 0 instead of null.
+    Treat those zero values as missing so holo variants can fall back to the
+    selected base price, then Cardmarket average, instead of being valued at €0.
+    """
     if not card:
         return 0
     field = normalize_price_field(price_field)
     if variant in HOLO_VARIANTS:
         holo_field = HOLO_FIELD_MAP.get(field)
-        if holo_field and getattr(card, holo_field, None) is not None:
-            return getattr(card, holo_field) or 0
-    return getattr(card, field, None) or getattr(card, "price_market", None) or 0
+        for candidate in (
+            getattr(card, holo_field, None) if holo_field else None,
+            getattr(card, field, None),
+            getattr(card, "price_market_holo", None),
+            getattr(card, "price_market", None),
+        ):
+            price = _positive_price(candidate)
+            if price is not None:
+                return price
+        return 0
+
+    for candidate in (getattr(card, field, None), getattr(card, "price_market", None)):
+        price = _positive_price(candidate)
+        if price is not None:
+            return price
+    return 0
