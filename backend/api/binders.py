@@ -13,7 +13,7 @@ from services import pokemon_api
 from services.card_fallbacks import apply_cross_language_fallbacks
 from services.card_upsert import upsert_card
 from services.card_values import effective_market_price, normalize_price_field
-from services.binder_csv import combine_binder_required_quantity
+from services.binder_csv import BINDER_CSV_DUPLICATE_QUANTITY_ERROR, combine_binder_required_quantity
 from services.wishlist_missing import plan_missing_wishlist_additions
 import datetime
 import csv
@@ -1410,9 +1410,9 @@ async def import_binder_csv(
                         planned_row["required_quantity"],
                         required_quantity,
                     )
-                except ValueError as exc:
+                except ValueError:
                     failed += 1
-                    errors.append(f"row {row_number}: {str(exc)}")
+                    errors.append(f"row {row_number}: {BINDER_CSV_DUPLICATE_QUANTITY_ERROR}")
                 continue
 
             existing = db.query(BinderCard).filter(
@@ -1426,9 +1426,9 @@ async def import_binder_csv(
                         _safe_required_quantity(existing.required_quantity),
                         required_quantity,
                     )
-                except ValueError as exc:
+                except ValueError:
                     failed += 1
-                    errors.append(f"row {row_number}: {str(exc)}")
+                    errors.append(f"row {row_number}: {BINDER_CSV_DUPLICATE_QUANTITY_ERROR}")
                     continue
                 planned_row = {"action": "update", "entry": existing, "required_quantity": required_quantity}
             else:

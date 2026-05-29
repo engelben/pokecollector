@@ -1,3 +1,6 @@
+BINDER_CSV_DUPLICATE_QUANTITY_ERROR = "combined required_quantity for duplicate card must be between 1 and 99"
+
+
 def combine_binder_required_quantity(current_quantity: int, incoming_quantity: int) -> int:
     """Combine duplicate wishlist/deck binder CSV quantities.
 
@@ -7,5 +10,5 @@ def combine_binder_required_quantity(current_quantity: int, incoming_quantity: i
     """
     combined_quantity = current_quantity + incoming_quantity
     if combined_quantity > 99:
-        raise ValueError("combined required_quantity for duplicate card must be between 1 and 99")
+        raise ValueError(BINDER_CSV_DUPLICATE_QUANTITY_ERROR)
     return combined_quantity

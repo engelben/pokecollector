@@ -1,6 +1,6 @@
 import unittest
 
-from services.binder_csv import combine_binder_required_quantity
+from services.binder_csv import BINDER_CSV_DUPLICATE_QUANTITY_ERROR, combine_binder_required_quantity
 
 
 class BinderCsvTests(unittest.TestCase):
@@ -16,8 +16,9 @@ class BinderCsvTests(unittest.TestCase):
         self.assertEqual(combine_binder_required_quantity(98, 1), 99)
 
     def test_combined_required_quantity_rejects_values_over_99(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as context:
             combine_binder_required_quantity(98, 2)
+        self.assertEqual(str(context.exception), BINDER_CSV_DUPLICATE_QUANTITY_ERROR)
 
 
 if __name__ == "__main__":
