@@ -6,12 +6,15 @@ import os
 
 import httpx
 
+from services.supporters import parse_rescue_donations_csv, parse_supporters_csv
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 REPO = "Git-Romer/pokecollector"
 GITHUB_API = "https://api.github.com"
 SUPPORTERS_CSV_URL = f"https://raw.githubusercontent.com/{REPO}/main/SUPPORTERS.csv"
+RESCUE_DONATIONS_CSV_URL = f"https://raw.githubusercontent.com/{REPO}/main/RESCUE_DONATIONS.csv"
 CONTRIBUTORS_CSV_URL = f"https://raw.githubusercontent.com/{REPO}/main/CONTRIBUTORS.csv"
 
 
@@ -103,23 +106,25 @@ async def get_contributors():
 
 @router.get("/supporters")
 async def get_supporters():
-    """Fetch supporters list from SUPPORTERS.csv in the repo."""
+    """Fetch supporter donation timeline from SUPPORTERS.csv in the repo."""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(SUPPORTERS_CSV_URL)
             resp.raise_for_status()
-            reader = csv.DictReader(io.StringIO(resp.text))
-            supporters = []
-            for row in reader:
-                name = (row.get("name") or "").strip()
-                if name:
-                    supporters.append(
-                        {
-                            "name": name,
-                            "url": (row.get("url") or "").strip() or None,
-                        }
-                    )
-            return supporters
+            return parse_supporters_csv(resp.text)
     except Exception as exc:
         logger.warning("Failed to fetch supporters: %s", exc)
         return []
+
+
+@router.get("/rescue-donations")
+async def get_rescue_donations():
+    """Fetch actual animal rescue donation batches from RESCUE_DONATIONS.csv."""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(RESCUE_DONATIONS_CSV_URL)
+            resp.raise_for_status()
+            return parse_rescue_donations_csv(resp.text)
+    except Exception as exc:
+        logger.warning("Failed to fetch rescue donations: %s", exc)
+        return parse_rescue_donations_csv("")
