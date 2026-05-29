@@ -501,6 +501,7 @@ const zh = {
     languageDE: 'Deutsch',
     languageEN: 'English',
     languageZH: '简体中文',
+    languageSV: '瑞典语',
     priceDisplay: '价格显示',
     priceDisplayLabel: '显示的Cardmarket价格',
     pricePrimary: '主价格 (用于价值计算)',
