@@ -3,9 +3,11 @@ import de from '../i18n/de'
 import en from '../i18n/en'
 import zh from '../i18n/zh'
 import sv from '../i18n/sv'
+import fr from '../i18n/fr'
+import nl from '../i18n/nl'
 import { priceFieldFromPrimary } from '../utils/prices'
 
-const translations = { de, en, zh, sv }
+const translations = { de, en, zh, sv, fr, nl }
 
 const DEFAULT_SETTINGS = {
   language: 'de',

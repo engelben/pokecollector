@@ -533,6 +533,8 @@ const en = {
     languageEN: 'English',
     languageZH: 'Simplified Chinese',
     languageSV: 'Swedish',
+    languageFR: 'French',
+    languageNL: 'Dutch',
     priceDisplay: 'Price Display',
     priceDisplayLabel: 'Displayed Cardmarket Prices',
     pricePrimary: 'Primary Price (for value calculation)',

@@ -529,6 +529,8 @@ const sv = {
     languageEN: 'English',
     languageZH: 'Förenklad kinesiska',
     languageSV: 'Svenska',
+    languageFR: 'Franska',
+    languageNL: 'Nederländska',
     priceDisplay: 'Prisvisning',
     priceDisplayLabel: 'Visade Cardmarket-priser',
     pricePrimary: 'Primärt pris (för värdeberäkning)',

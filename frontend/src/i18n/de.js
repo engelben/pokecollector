@@ -533,6 +533,8 @@ const de = {
     languageEN: 'English',
     languageZH: 'Chinesisch (vereinfacht)',
     languageSV: 'Schwedisch',
+    languageFR: 'Französisch',
+    languageNL: 'Niederländisch',
     priceDisplay: 'Preisanzeige',
     priceDisplayLabel: 'Angezeigte Cardmarket-Preise',
     pricePrimary: 'Hauptpreis (für Wertberechnung)',
