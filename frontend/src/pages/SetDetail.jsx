@@ -323,6 +323,7 @@ export default function SetDetail() {
       toast.success(t('card.addedToCollection'))
       queryClient.invalidateQueries({ queryKey: ['set-checklist', setId] })
       queryClient.invalidateQueries({ queryKey: ['collection'] })
+      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
       setSelectedCard(null)
     },
     onError: () => toast.error(t('card.addFailed')),
@@ -347,6 +348,7 @@ export default function SetDetail() {
       toast.success(t('collection.removed'))
       queryClient.invalidateQueries({ queryKey: ['set-checklist', setId] })
       queryClient.invalidateQueries({ queryKey: ['collection'] })
+      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
       setSelectedCard(null)
     },
     onError: () => toast.error(t('collection.removeFailed')),
@@ -358,6 +360,7 @@ export default function SetDetail() {
       toast.success(t('collection.updated'))
       queryClient.invalidateQueries({ queryKey: ['set-checklist', setId] })
       queryClient.invalidateQueries({ queryKey: ['collection'] })
+      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
     },
     onError: () => toast.error(t('collection.updateFailed')),
   })
