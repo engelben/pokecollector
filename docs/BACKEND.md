@@ -185,7 +185,9 @@ Important behavior:
 - Each user only reads and writes their own `UserSetting` rows
 - Admin-only settings are stored globally in `settings`
 - Recurring automatic syncs include a full sync cadence and a separate small price sync cadence
-- `tcgdex_sync_languages` is seeded from `TCGDEX_SYNC_LANGUAGES` only when the row does not exist yet; afterward the DB value is authoritative
+- `tcgdex_sync_languages` is seeded from `TCGDEX_SYNC_LANGUAGES` only when the row does not exist yet; afterward the DB value is authoritative. Empty or invalid env values safely fall back to `en,de`.
+- Supported TCGdex sync language codes are centralized in `services/tcgdex_languages.py`. Optional extra languages are `fr`, `es`, `es-mx`, `it`, `pt`, `pt-br`, `pt-pt`, `nl`, `pl`, `ru`, `ja`, `ko`, `zh-tw`, `id`, `th`, and `zh-cn` in addition to the default `en,de`.
+- English is the preferred cross-language fallback source for missing data, images, and prices by exact TCGdex ID. The backend does not guess English replacements by card name for regional-only cards.
 - Admin users can receive initial fallback values from env vars for Telegram and Gemini
 - `recognize.py` intentionally reads Gemini only from the current user's `UserSetting`; there is no cross-user fallback
 

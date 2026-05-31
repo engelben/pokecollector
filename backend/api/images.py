@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Card, ImageCache, Set, Setting
 from services.image_url_security import validate_public_https_image_url
+from services.tcgdex_languages import english_fallback_languages, strip_lang_suffix
 
 router = APIRouter()
 
@@ -27,11 +28,8 @@ def _setting_enabled(db: Session, key: str, default: bool = True) -> bool:
 
 
 def _other_lang(lang: str | None) -> str | None:
-    if lang == "de":
-        return "en"
-    if lang == "en":
-        return "de"
-    return None
+    fallback_order = english_fallback_languages(lang)
+    return fallback_order[0] if fallback_order else None
 
 
 def _card_back_response():
@@ -177,7 +175,7 @@ def get_set_image(set_id: str, image_type: str, db: Session = Depends(get_db)):
 
     if not url and _setting_enabled(db, "cross_language_image_fallback", True):
         fallback_lang = _other_lang(card_set.lang)
-        tcg_set_id = card_set.tcg_set_id or card_set.id.rsplit("_", 1)[0]
+        tcg_set_id = card_set.tcg_set_id or strip_lang_suffix(card_set.id)[0]
         if fallback_lang:
             sibling = db.query(Set).filter(
                 Set.tcg_set_id == tcg_set_id,

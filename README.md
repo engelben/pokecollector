@@ -18,9 +18,9 @@ Be kind. Be clear. Assume good intent. Keep feedback constructive.
 - 👤 **Creator:** [Gilles Romer](https://romerg.de/)
 - ✉️ **Contact:** [info@romerg.de](mailto:info@romerg.de)
 
-![Version](https://img.shields.io/badge/version-v1.21.4-e3000b?style=flat-square) ![Dark Theme](https://img.shields.io/badge/theme-dark-1a1a2e?style=flat-square) ![TCGdex](https://img.shields.io/badge/card%20data-TCGdex-e3000b?style=flat-square) ![Docker](https://img.shields.io/badge/deploy-Docker-2496ed?style=flat-square) ![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?style=flat-square) ![React](https://img.shields.io/badge/frontend-React%2018-61dafb?style=flat-square) [![Ko-fi](https://img.shields.io/badge/support-Ko--fi-ff5e5b?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/gillesromer)
+![Version](https://img.shields.io/badge/version-v1.21.5-e3000b?style=flat-square) ![Dark Theme](https://img.shields.io/badge/theme-dark-1a1a2e?style=flat-square) ![TCGdex](https://img.shields.io/badge/card%20data-TCGdex-e3000b?style=flat-square) ![Docker](https://img.shields.io/badge/deploy-Docker-2496ed?style=flat-square) ![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?style=flat-square) ![React](https://img.shields.io/badge/frontend-React%2018-61dafb?style=flat-square) [![Ko-fi](https://img.shields.io/badge/support-Ko--fi-ff5e5b?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/gillesromer)
 
-**Current version:** `v1.21.4` · Releases are tracked on the [GitHub Releases page](https://github.com/Git-Romer/pokecollector/releases).
+**Current version:** `v1.21.5` · Releases are tracked on the [GitHub Releases page](https://github.com/Git-Romer/pokecollector/releases).
 
 ![WebApp Preview](preview-homescreen.png)
 
@@ -230,13 +230,17 @@ The **Users** tab is only visible to admin users and only while multi-user mode 
 | `GEMINI_API_KEY` | Initial Gemini key for the admin user; other users configure their own key in Settings | *(empty)* |
 | `TELEGRAM_BOT_TOKEN` | Initial Telegram bot token for the admin user | *(empty)* |
 | `TELEGRAM_CHAT_ID` | Initial Telegram chat ID for the admin user | *(empty)* |
-| `TCGDEX_SYNC_LANGUAGES` | Initial admin default for TCGdex set/card sync languages on first launch only. After bootstrap, the DB setting in Settings is authoritative. Allowed values: `en`, `de`, `en,de` | `en,de` |
+| `TCGDEX_SYNC_LANGUAGES` | Initial admin default for TCGdex set/card sync languages on first launch only. After bootstrap, the DB setting in Settings is authoritative. Comma-separated TCGdex language codes. Empty or invalid values safely fall back to `en,de`. Extra languages increase sync time, API calls, and database size. | `en,de` |
 | `ADMIN_BOOTSTRAP_LOG` | Whether bootstrap credentials may be logged on first start | `true` |
 | `PUBLIC_MODE` | Enable SEO meta tags, Open Graph, and allow search engine indexing. Default blocks all crawlers. Requires rebuild. | `false` |
 | `CORS_ORIGINS` | Comma-separated list of allowed origins for CORS. If empty, allows all origins. Set to your domain for production (e.g. `https://pokecollector.romerg.de`). | *(all)* |
 | `PRE_UPGRADE_BACKUP_ENABLED` | Create an automatic SQL backup before startup migrations when an existing install starts on a new app version | `true` |
 | `PRE_UPGRADE_BACKUP_REQUIRED` | Stop startup if the automatic pre-upgrade backup fails. Set to `false` only if you have another verified backup process. | `true` |
 | `PRE_UPGRADE_BACKUP_KEEP` | Number of automatic pre-upgrade backups to retain in `/app/backups`; minimum `1` | `10` |
+
+Supported `TCGDEX_SYNC_LANGUAGES` codes: `en`, `fr`, `es`, `es-mx`, `it`, `pt`, `pt-br`, `pt-pt`, `de`, `nl`, `pl`, `ru`, `ja`, `ko`, `zh-tw`, `id`, `th`, `zh-cn`.
+
+English is used as the preferred fallback source for missing synced data, images, and prices when the same TCGdex card or set ID exists in English. Regional-only cards that do not exist in English are kept in their native language data instead of being guessed by name.
 
 ---
 

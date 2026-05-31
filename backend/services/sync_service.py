@@ -10,6 +10,7 @@ from services.card_fallbacks import apply_cross_language_fallbacks, build_missin
 from services.card_upsert import upsert_card
 from services.card_values import effective_market_price, normalize_price_field
 from services.price_utils import PRICE_FIELDS, has_valid_price
+from services.tcgdex_languages import normalize_tcgdex_sync_languages
 
 logger = logging.getLogger(__name__)
 
@@ -242,11 +243,10 @@ def _mark_price_sync_attempt(card_data: dict, attempted_at: datetime.datetime) -
 
 
 def _get_tcgdex_sync_languages(db: Session) -> list[str]:
-    """Get TCGdex sync languages from settings."""
+    """Get normalized TCGdex sync languages from settings."""
     row = db.query(Setting).filter(Setting.key == "tcgdex_sync_languages").first()
-    raw_parts = [part.strip().lower() for part in (row.value if row else "en,de").split(",")]
-    selected = [lang for lang in ("en", "de") if lang in raw_parts]
-    return selected or ["en", "de"]
+    normalized = normalize_tcgdex_sync_languages(row.value if row else "en,de")
+    return normalized.split(",") if normalized else ["en", "de"]
 
 
 def upsert_set(db: Session, set_data: dict):

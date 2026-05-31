@@ -6,6 +6,7 @@ import sv from '../i18n/sv'
 import fr from '../i18n/fr'
 import nl from '../i18n/nl'
 import { priceFieldFromPrimary } from '../utils/prices'
+import { normalizeTcgdexLanguageCsv } from '../utils/tcgdexLanguages'
 
 const translations = { de, en, zh, sv, fr, nl }
 
@@ -34,7 +35,11 @@ export function SettingsProvider({ children }) {
     fetch('/api/settings/', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
-        setSettings(prev => ({ ...prev, ...data }))
+        setSettings(prev => ({
+          ...prev,
+          ...data,
+          tcgdex_sync_languages: normalizeTcgdexLanguageCsv(data.tcgdex_sync_languages || prev.tcgdex_sync_languages),
+        }))
         setLoaded(true)
       })
       .catch(() => {

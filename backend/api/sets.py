@@ -15,6 +15,7 @@ from services.card_fallbacks import (
     missing_language_fallback_enabled,
 )
 from services.card_upsert import upsert_card
+from services.tcgdex_languages import DEFAULT_TCGDEX_SYNC_LANGUAGES, has_lang_suffix, is_supported_tcgdex_language, normalize_tcgdex_language
 
 router = APIRouter()
 
@@ -51,9 +52,10 @@ def _refresh_sets(db: Session, display_lang: str):
     """Refresh sets from TCGdex API and store in DB.
 
     Each language version is stored as a separate row with a composite primary key
-    (e.g. "sv1_de" and "sv1_en"). lang field is strictly "en" or "de".
+    (e.g. "sv1_de" and "sv1_en"). lang field is a supported TCGdex language code.
     """
-    languages = [display_lang] if display_lang in ("en", "de") else ["en", "de"]
+    normalized_display_lang = normalize_tcgdex_language(display_lang)
+    languages = [normalized_display_lang] if is_supported_tcgdex_language(normalized_display_lang) else list(DEFAULT_TCGDEX_SYNC_LANGUAGES)
     sets_data = pokemon_api.get_all_sets(languages=languages)
 
     for set_data in sets_data:
@@ -76,20 +78,18 @@ def get_sets(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     refresh: bool = False,
-    lang: Optional[str] = Query("all", description="Language filter: 'de', 'en', or 'all'"),
+    lang: Optional[str] = Query("all", description="Language filter: supported TCGdex language code or 'all'"),
 ):
     """Get all sets, optionally refresh from TCGdex API.
 
-    lang: filter by set language — 'de' (German only), 'en' (English only), or 'all' (both).
-    Sets are stored separately per language — no 'both' entries.
+    lang: filter by set language code or 'all'.
+    Sets are stored separately per language, with no 'both' entries.
     """
-    lang_filter = lang or "all"
+    requested_lang = normalize_tcgdex_language(lang or "all")
+    lang_filter = requested_lang if is_supported_tcgdex_language(requested_lang) else "all"
 
     # Determine display language for API calls
-    if lang_filter in ("en", "de"):
-        display_lang = lang_filter
-    else:
-        display_lang = _get_language(db)
+    display_lang = lang_filter if lang_filter != "all" else _get_language(db)
 
     # Always refresh if empty DB or explicitly requested
     if refresh or db.query(Set).count() == 0:
@@ -101,28 +101,23 @@ def get_sets(
 
     # Build query with optional lang filter
     query = db.query(Set)
-    if lang_filter == "de":
-        query = query.filter(Set.lang == "de")
-    elif lang_filter == "en":
-        query = query.filter(Set.lang == "en")
-    # else "all" → no filter
+    if lang_filter != "all":
+        query = query.filter(Set.lang == lang_filter)
+    # else "all" -> no filter
 
     sets = query.order_by(text("release_date DESC NULLS LAST")).all()
 
     # If filter returns no results for a specific lang, force a refresh
-    if not sets and lang_filter in ("de", "en"):
+    if not sets and lang_filter != "all":
         try:
             _refresh_sets(db, display_lang)
             query = db.query(Set)
-            if lang_filter == "de":
-                query = query.filter(Set.lang == "de")
-            elif lang_filter == "en":
-                query = query.filter(Set.lang == "en")
+            query = query.filter(Set.lang == lang_filter)
             sets = query.order_by(text("release_date DESC NULLS LAST")).all()
         except Exception:
             pass
 
-    # Compute owned_count per set, grouped by (set_id, lang) so DE and EN sets are counted separately
+    # Compute owned_count per set, grouped by (set_id, lang) so localized sets are counted separately
     owned_counts = (
         db.query(
             Card.set_id,
@@ -169,7 +164,7 @@ def get_set(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get a single set by DB key (e.g. 'sv1_de' or 'sv1_en')."""
+    """Get a single set by composite DB key, such as 'sv1_en' or 'sv1_zh-tw'."""
     set_obj = db.query(Set).filter(Set.id == set_id).first()
     if not set_obj:
         raise HTTPException(status_code=404, detail="Set not found")
@@ -216,7 +211,7 @@ def get_set_checklist(
         legacy_cards = db.query(Card).filter(Card.set_id == tcg_id).all()
         repairable_cards = [
             card for card in legacy_cards
-            if not (card.id or "").endswith(("_de", "_en"))
+            if not has_lang_suffix(card.id)
         ]
         if repairable_cards:
             for card in repairable_cards:
