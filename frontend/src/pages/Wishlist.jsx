@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Trash2, Bell, BellOff, Edit2, Check, X, Heart, Filter, SortAsc, ChevronUp, ChevronDown, Library, BookOpen } from 'lucide-react'
+import { Trash2, Edit2, Check, X, Heart, Filter, SortAsc, ChevronUp, ChevronDown, Library, BookOpen, Minus, Plus } from 'lucide-react'
 import { getWishlist, removeFromWishlist, updateWishlistItem, addToCollection } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import CardListItem from '../components/CardListItem'
@@ -10,26 +10,36 @@ import { resolveCardImageUrl } from '../utils/imageUrl'
 import FallbackBadges from '../components/FallbackBadges'
 import { getEffectiveCardPrice } from '../utils/prices'
 
-function AlertEditor({ item, onDone }) {
+function WishlistItemEditor({ item, onDone }) {
+  const [quantity, setQuantity] = useState(item.quantity || 1)
   const [above, setAbove] = useState(item.price_alert_above || '')
   const [below, setBelow] = useState(item.price_alert_below || '')
   const { t } = useSettings()
   const queryClient = useQueryClient()
 
+  const normalizedQuantity = Math.max(1, Math.min(99, parseInt(quantity, 10) || 1))
+
   const updateMutation = useMutation({
     mutationFn: () => updateWishlistItem(item.id, {
+      quantity: normalizedQuantity,
       price_alert_above: above ? parseFloat(above) : null,
       price_alert_below: below ? parseFloat(below) : null,
     }),
     onSuccess: () => {
-      toast.success(t('wishlist.alertUpdated'))
+      toast.success(t('wishlist.updated'))
       queryClient.invalidateQueries({ queryKey: ['wishlist'] })
       onDone()
     },
   })
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap justify-center">
+      <div className="flex items-center gap-1">
+        <span className="text-xs text-text-muted">×</span>
+        <input type="number" min="1" max="99" step="1" placeholder={t('common.quantity')}
+          value={quantity}
+          onChange={(e) => setQuantity(e.target.value)} className="input w-16 py-1 text-xs" />
+      </div>
       <div className="flex items-center gap-1">
         <span className="text-xs text-text-muted">↑</span>
         <input type="number" step="0.01" placeholder={t('wishlist.aboveLabel')}
@@ -92,6 +102,21 @@ export default function Wishlist() {
     },
   })
 
+  const quantityMutation = useMutation({
+    mutationFn: ({ item, quantity }) => updateWishlistItem(item.id, { quantity }),
+    onSuccess: () => {
+      toast.success(t('wishlist.updated'))
+      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
+    },
+  })
+
+  const changeQuantity = (item, delta) => {
+    const nextQuantity = Math.max(1, Math.min(99, (item.quantity || 1) + delta))
+    if (nextQuantity !== item.quantity) {
+      quantityMutation.mutate({ item, quantity: nextQuantity })
+    }
+  }
+
   const sets = useMemo(() => {
     const map = new Map()
     items.forEach(i => {
@@ -102,6 +127,7 @@ export default function Wishlist() {
   }, [items])
 
   const rarities = useMemo(() => [...new Set(items.map(i => i.card?.rarity).filter(Boolean))].sort(), [items])
+  const totalCopies = useMemo(() => items.reduce((sum, item) => sum + (item.quantity || 1), 0), [items])
 
   const hasActiveFilters = filterSet || filterRarity || filterMinPrice || filterMaxPrice || filterHasAlert
 
@@ -188,7 +214,7 @@ export default function Wishlist() {
                 </button>
               )}
 
-              <span className="text-xs text-text-muted ml-auto">{filtered.length} / {items.length}</span>
+              <span className="text-xs text-text-muted ml-auto">{filtered.length} / {items.length} · {totalCopies} {t('wishlist.copies')}</span>
             </div>
 
             {showFilters && (
@@ -240,6 +266,7 @@ export default function Wishlist() {
                   <thead>
                     <tr className="border-b border-border bg-bg/50">
                       <th className="text-left px-4 py-3 text-text-muted font-medium">{t('wishlist.card')}</th>
+                      <th className="text-center px-4 py-3 text-text-muted font-medium">{t('common.quantity')}</th>
                       <th className="text-left px-4 py-3 text-text-muted font-medium">{t('common.set')}</th>
                       <th className="text-right px-4 py-3 text-text-muted font-medium">{t('wishlist.marketPrice')}</th>
                       <th className="text-center px-4 py-3 text-text-muted font-medium">{t('wishlist.priceAlerts')}</th>
@@ -272,6 +299,19 @@ export default function Wishlist() {
                               </div>
                             </div>
                           </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="inline-flex items-center gap-1 rounded-full bg-bg-surface border border-border px-1.5 py-1">
+                              <button onClick={() => changeQuantity(item, -1)} disabled={(item.quantity || 1) <= 1 || quantityMutation.isPending}
+                                className="text-text-muted hover:text-text-primary disabled:opacity-30 disabled:hover:text-text-muted transition-colors">
+                                <Minus size={12} />
+                              </button>
+                              <span className="min-w-6 text-xs font-semibold text-text-primary">×{item.quantity || 1}</span>
+                              <button onClick={() => changeQuantity(item, 1)} disabled={(item.quantity || 1) >= 99 || quantityMutation.isPending}
+                                className="text-text-muted hover:text-text-primary disabled:opacity-30 disabled:hover:text-text-muted transition-colors">
+                                <Plus size={12} />
+                              </button>
+                            </div>
+                          </td>
                           <td className="px-4 py-3 text-text-secondary text-xs">{card?.set_ref?.name || '-'}</td>
                           <td className="px-4 py-3 text-right">
                             {price ? (
@@ -284,7 +324,7 @@ export default function Wishlist() {
                           </td>
                           <td className="px-4 py-3 text-center">
                             {editingId === item.id ? (
-                              <AlertEditor item={item} onDone={() => setEditingId(null)} />
+                              <WishlistItemEditor item={item} onDone={() => setEditingId(null)} />
                             ) : (
                               <div className="flex items-center justify-center gap-3">
                                 {item.price_alert_above && (
@@ -340,12 +380,13 @@ export default function Wishlist() {
                     return (
                       <div key={item.id} className="bg-bg-card border border-border rounded-lg p-3 space-y-2">
                         <p className="text-sm font-medium text-text-primary truncate">{card?.name}</p>
-                        <AlertEditor item={item} onDone={() => setEditingId(null)} />
+                        <WishlistItemEditor item={item} onDone={() => setEditingId(null)} />
                       </div>
                     )
                   }
 
                   const badges = []
+                  badges.push({ label: `×${item.quantity || 1}`, variant: 'purple' })
                   if (item.price_alert_above) badges.push({ label: `↑ ${formatPrice(item.price_alert_above)}`, variant: 'yellow' })
                   if (item.price_alert_below) badges.push({ label: `↓ ${formatPrice(item.price_alert_below)}`, variant: 'blue' })
                   if (card?.rarity) badges.push({ label: card.rarity, variant: 'gray' })

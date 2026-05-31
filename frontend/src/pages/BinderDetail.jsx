@@ -14,6 +14,18 @@ const CONDITIONS = ['Mint', 'NM', 'LP', 'MP', 'HP']
 const BINDER_CSV_IMPORT_HEADER = 'set_code,number,required_quantity,lang'
 const BINDER_CSV_IMPORT_TEMPLATE = `${BINDER_CSV_IMPORT_HEADER}\nBLK,057,4,de\n`
 
+function askQuantity(t, defaultQuantity = 1) {
+  const initialQuantity = Math.max(1, Math.min(99, parseInt(defaultQuantity, 10) || 1))
+  const input = window.prompt(t('wishlist.quantityPrompt'), String(initialQuantity))
+  if (input === null) return null
+  const quantity = parseInt(input, 10)
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+    toast.error(t('wishlist.quantityInvalid'))
+    return null
+  }
+  return quantity
+}
+
 const downloadBinderCsvTemplate = () => {
   const blob = new Blob([BINDER_CSV_IMPORT_TEMPLATE], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
@@ -198,7 +210,7 @@ export default function BinderDetail() {
   }, [collectionData])
 
   const addMutation = useMutation({
-    mutationFn: (cardId) => addCardToBinder(parseInt(binderId), cardId),
+    mutationFn: ({ cardId, requiredQuantity = 1 }) => addCardToBinder(parseInt(binderId), cardId, requiredQuantity),
     onSuccess: () => {
       toast.success(t('common.add') + ' ✓')
       queryClient.invalidateQueries({ queryKey: ['binder-cards', binderId] })
@@ -256,10 +268,11 @@ export default function BinderDetail() {
   }, [selectedCard])
 
   const wishlistMutation = useMutation({
-    mutationFn: (binderCardId) => addBinderEntryToWishlist(parseInt(binderId), binderCardId),
+    mutationFn: ({ binderCardId, quantity = null }) => addBinderEntryToWishlist(parseInt(binderId), binderCardId, quantity),
     onSuccess: (result) => {
       if (result?.added > 0) {
-        toast.success((isWishlist ? t('binderTypes.addMissingToWishlist') : t('binderTypes.addToWishlist')) + ' ✓')
+        const copies = result?.added_copies ? ` (${result.added_copies} ${t('binderTypes.addedCopies')})` : ''
+        toast.success((isWishlist ? t('binderTypes.addMissingToWishlist') : t('binderTypes.addToWishlist')) + ` ✓${copies}`)
       } else if (result?.skipped_complete > 0) {
         toast(t('binderTypes.alreadyCompleteInCollection'))
       } else {
@@ -273,7 +286,8 @@ export default function BinderDetail() {
   const bulkWishlistMutation = useMutation({
     mutationFn: () => addBinderCardsToWishlist(parseInt(binderId)),
     onSuccess: (result) => {
-      const summary = `${result.added} ${t('binderTypes.added')}, ${result.missing_copies || 0} ${t('binderTypes.missingCopies')}, ${result.skipped} ${t('binderTypes.skipped')}`
+      const addedCopies = result.added_copies ?? result.added
+      const summary = `${result.added} ${t('binderTypes.added')}, ${addedCopies} ${t('binderTypes.addedCopies')}, ${result.missing_copies || 0} ${t('binderTypes.missingCopies')}, ${result.skipped} ${t('binderTypes.skipped')}`
       if (result.added > 0) {
         toast.success(`${t('binderTypes.addMissingToWishlist')} ✓ (${summary})`)
       } else if (result.skipped_complete > 0 && result.skipped_existing === 0) {
@@ -560,7 +574,11 @@ export default function BinderDetail() {
                     return (
                       <div key={card.id}
                         className={`relative rounded-lg overflow-hidden cursor-pointer group ${alreadyAdded ? 'opacity-40' : ''}`}
-                        onClick={() => !alreadyAdded && addMutation.mutate(card.id)}>
+                        onClick={() => {
+                          if (alreadyAdded) return
+                          const requiredQuantity = askQuantity(t, 1)
+                          if (requiredQuantity) addMutation.mutate({ cardId: card.id, requiredQuantity })
+                        }}>
                         {(card.images?.small || resolveCardImageUrl(card) || card.image) ? (
                           <img src={resolveCardImageUrl(card)}
                             alt={card.name} className="w-full aspect-[2.5/3.5] object-cover" loading="lazy" />
@@ -934,7 +952,14 @@ export default function BinderDetail() {
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <button className="btn-ghost justify-center" onClick={() => wishlistMutation.mutate(selectedCard.binder_card_id)}>
+                <button className="btn-ghost justify-center" onClick={() => {
+                  if (isWishlist) {
+                    wishlistMutation.mutate({ binderCardId: selectedCard.binder_card_id })
+                    return
+                  }
+                  const wishlistQuantity = askQuantity(t, 1)
+                  if (wishlistQuantity) wishlistMutation.mutate({ binderCardId: selectedCard.binder_card_id, quantity: wishlistQuantity })
+                }}>
                   <Heart size={16} /> {isWishlist ? t('binderTypes.addMissingToWishlist') : t('binderTypes.addToWishlist')}
                 </button>
                 <button className="btn-ghost justify-center text-brand-red" onClick={() => { removeMutation.mutate({ cardId: selectedCard.id, binderCardId: selectedCard.binder_card_id }); setSelectedCard(null) }}>

@@ -10,6 +10,17 @@ import datetime
 
 router = APIRouter()
 
+WISHLIST_MIN_QUANTITY = 1
+WISHLIST_MAX_QUANTITY = 99
+
+
+def _add_wishlist_quantity(current: int | None, increment: int) -> int:
+    current_quantity = max(int(current or WISHLIST_MIN_QUANTITY), WISHLIST_MIN_QUANTITY)
+    next_quantity = current_quantity + increment
+    if next_quantity > WISHLIST_MAX_QUANTITY:
+        raise HTTPException(status_code=400, detail="Wishlist quantity cannot exceed 99")
+    return next_quantity
+
 
 @router.get("/", response_model=List[WishlistItemResponse])
 def get_wishlist(
@@ -31,7 +42,7 @@ def add_to_wishlist(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Add a card to the wishlist."""
+    """Add a card to the wishlist, incrementing quantity when it already exists."""
     ensure_card_exists(db, item.card_id)
 
     existing = db.query(WishlistItem).filter(
@@ -40,6 +51,7 @@ def add_to_wishlist(
     ).first()
 
     if existing:
+        existing.quantity = _add_wishlist_quantity(existing.quantity, item.quantity)
         if item.price_alert_above is not None:
             existing.price_alert_above = item.price_alert_above
         if item.price_alert_below is not None:
@@ -50,6 +62,7 @@ def add_to_wishlist(
 
     db_item = WishlistItem(
         card_id=item.card_id,
+        quantity=item.quantity,
         price_alert_above=item.price_alert_above,
         price_alert_below=item.price_alert_below,
         user_id=current_user.id,
@@ -68,7 +81,7 @@ def update_wishlist_item(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Update price alerts for a wishlist item."""
+    """Update quantity and price alerts for a wishlist item."""
     item = db.query(WishlistItem).filter(
         WishlistItem.id == item_id,
         WishlistItem.user_id == current_user.id,
@@ -76,10 +89,13 @@ def update_wishlist_item(
     if not item:
         raise HTTPException(status_code=404, detail="Wishlist item not found")
 
-    if update.price_alert_above is not None:
-        item.price_alert_above = update.price_alert_above
-    if update.price_alert_below is not None:
-        item.price_alert_below = update.price_alert_below
+    update_data = update.model_dump(exclude_unset=True)
+    if "quantity" in update_data:
+        item.quantity = update_data["quantity"]
+    if "price_alert_above" in update_data:
+        item.price_alert_above = update_data["price_alert_above"]
+    if "price_alert_below" in update_data:
+        item.price_alert_below = update_data["price_alert_below"]
 
     db.commit()
     db.refresh(item)

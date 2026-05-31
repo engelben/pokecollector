@@ -166,11 +166,13 @@ class CollectionItemResponse(BaseModel):
 
 class WishlistItemCreate(BaseModel):
     card_id: str
+    quantity: int = Field(1, ge=1, le=99)
     price_alert_above: Optional[float] = None
     price_alert_below: Optional[float] = None
 
 
 class WishlistItemUpdate(BaseModel):
+    quantity: Optional[int] = Field(None, ge=1, le=99)
     price_alert_above: Optional[float] = None
     price_alert_below: Optional[float] = None
 
@@ -178,6 +180,7 @@ class WishlistItemUpdate(BaseModel):
 class WishlistItemResponse(BaseModel):
     id: int
     card_id: str
+    quantity: int = 1
     price_alert_above: Optional[float] = None
     price_alert_below: Optional[float] = None
     notified_at: Optional[datetime] = None

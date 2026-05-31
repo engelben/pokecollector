@@ -13,6 +13,18 @@ import { CARD_VARIANTS, getAvailableVariants, getDefaultVariant, getDefaultVaria
 import FallbackBadges from './FallbackBadges'
 import { getEffectiveCardPrice } from '../utils/prices'
 
+function askWishlistQuantity(t, defaultQuantity = 1) {
+  const initialQuantity = Math.max(1, Math.min(99, parseInt(defaultQuantity, 10) || 1))
+  const input = window.prompt(t('wishlist.quantityPrompt'), String(initialQuantity))
+  if (input === null) return null
+  const quantity = parseInt(input, 10)
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+    toast.error(t('wishlist.quantityInvalid'))
+    return null
+  }
+  return quantity
+}
+
 const RARITY_COLORS = {
   'Common': 'text-text-secondary',
   'Uncommon': 'text-green',
@@ -484,7 +496,11 @@ export const CardItem = memo(function CardItem({ card, showActions = true, onAdd
             </button>
             <button
               className="bg-bg-surface hover:bg-bg-elevated text-text-secondary hover:text-pink-400 text-xs px-2 py-1.5 rounded-lg transition-all"
-              onClick={(e) => { e.stopPropagation(); wishlistMutation.mutate({ card_id: card.id }) }}>
+              onClick={(e) => {
+                e.stopPropagation()
+                const wishlistQuantity = askWishlistQuantity(t, 1)
+                if (wishlistQuantity) wishlistMutation.mutate({ card_id: card.id, quantity: wishlistQuantity })
+              }}>
               <Heart size={12} />
             </button>
             {onAddToBinder && (
@@ -973,7 +989,7 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
                 })} disabled={addMutation.isPending}>
                   <Plus size={16} /> {addMutation.isPending ? t('card.adding') : t('card.addToCollection')}
                 </button>
-                <button className="btn-ghost" onClick={() => wishlistMutation.mutate({ card_id: card.id })}
+                <button className="btn-ghost" onClick={() => wishlistMutation.mutate({ card_id: card.id, quantity: Math.max(1, Math.min(99, quantity)) })}
                   disabled={wishlistMutation.isPending}>
                   <Heart size={16} />
                 </button>

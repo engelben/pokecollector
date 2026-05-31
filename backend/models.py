@@ -159,6 +159,7 @@ class WishlistItem(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     card_id = Column(String, ForeignKey("cards.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    quantity = Column(Integer, default=1, nullable=False)
     price_alert_above = Column(Float)
     price_alert_below = Column(Float)
     notified_at = Column(DateTime)
@@ -166,7 +167,10 @@ class WishlistItem(Base):
 
     card = relationship("Card", back_populates="wishlist_items")
 
-    __table_args__ = (UniqueConstraint("user_id", "card_id", name="uq_wishlist_user_card"),)
+    __table_args__ = (
+        CheckConstraint("quantity >= 1 AND quantity <= 99", name="ck_wishlist_quantity_range"),
+        UniqueConstraint("user_id", "card_id", name="uq_wishlist_user_card"),
+    )
 
 
 class PriceHistory(Base):

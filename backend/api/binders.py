@@ -109,6 +109,51 @@ def _user_collection_quantities(db: Session, current_user: User, card_ids: list[
     }
 
 
+def _user_wishlist_quantities(db: Session, current_user: User, card_ids: list[str] | None = None) -> dict[str, int]:
+    query = db.query(WishlistItem.card_id, func.coalesce(func.sum(WishlistItem.quantity), 0)).filter(
+        WishlistItem.user_id == current_user.id
+    )
+    if card_ids is not None:
+        if not card_ids:
+            return {}
+        query = query.filter(WishlistItem.card_id.in_(card_ids))
+    return {
+        card_id: int(quantity or 0)
+        for card_id, quantity in query.group_by(WishlistItem.card_id).all()
+    }
+
+
+def _apply_wishlist_additions(db: Session, current_user: User, additions) -> tuple[int, int]:
+    """Insert or increment global wishlist rows. Returns touched rows and copies."""
+    touched = 0
+    added_copies = 0
+    for addition in additions:
+        existing = db.query(WishlistItem).filter(
+            WishlistItem.card_id == addition.card_id,
+            WishlistItem.user_id == current_user.id,
+        ).first()
+        if existing:
+            current_quantity = max(int(existing.quantity or 1), 1)
+            next_quantity = min(99, current_quantity + addition.quantity)
+            actual_added = next_quantity - current_quantity
+            if actual_added <= 0:
+                continue
+            existing.quantity = next_quantity
+        else:
+            actual_added = min(99, addition.quantity)
+            if actual_added <= 0:
+                continue
+            db.add(WishlistItem(
+                card_id=addition.card_id,
+                quantity=actual_added,
+                user_id=current_user.id,
+                created_at=datetime.datetime.utcnow(),
+            ))
+        touched += 1
+        added_copies += actual_added
+    return touched, added_copies
+
+
 def _ensure_card_gameplay_data(db: Session, card: Card | None) -> Card | None:
     """Fetch full TCGdex card data when a local card has no playable fingerprint yet."""
     if not card or card.is_custom or card.playable_fingerprint or not card.tcg_card_id:
@@ -1074,6 +1119,7 @@ def switch_binder_entry_card(
 def add_binder_entry_to_wishlist(
     binder_id: int,
     binder_card_id: int,
+    quantity: int | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1096,69 +1142,96 @@ def add_binder_entry_to_wishlist(
     if (binder.binder_type or "collection") == "wishlist":
         required_quantity = _safe_required_quantity(bc.required_quantity)
         owned_quantities = _user_collection_quantities(db, current_user, [bc.card_id])
-        existing_ids = {
-            card_id for (card_id,) in db.query(WishlistItem.card_id).filter(
-                WishlistItem.user_id == current_user.id,
-                WishlistItem.card_id == bc.card_id,
-            ).all()
-        }
+        wishlist_quantities = _user_wishlist_quantities(db, current_user, [bc.card_id])
         plan = plan_missing_wishlist_additions(
             [(bc.card_id, required_quantity)],
             owned_quantities,
-            existing_ids,
+            wishlist_quantities,
         )
 
-        if not plan.card_ids_to_add:
+        if not plan.additions:
             message = "Card already in wishlist" if plan.skipped_existing else "Card already complete in collection"
             return {
                 "message": message,
                 "added": 0,
+                "added_copies": 0,
                 "skipped": plan.skipped,
                 "skipped_complete": plan.skipped_complete,
                 "skipped_existing": plan.skipped_existing,
                 "missing_copies": plan.missing_copies,
+                "wishlist_copies": plan.wishlist_copies,
             }
     else:
+        requested_quantity = _safe_required_quantity(quantity) if quantity is not None else 1
         existing = db.query(WishlistItem).filter(
             WishlistItem.card_id == bc.card_id,
             WishlistItem.user_id == current_user.id,
         ).first()
         if existing:
+            current_quantity = max(int(existing.quantity or 1), 1)
+            next_quantity = min(99, current_quantity + requested_quantity)
+            actual_added = next_quantity - current_quantity
+            if actual_added <= 0:
+                return {
+                    "message": "Card already in wishlist",
+                    "added": 0,
+                    "added_copies": 0,
+                    "skipped": 1,
+                    "skipped_complete": 0,
+                    "skipped_existing": 1,
+                    "missing_copies": 0,
+                    "wishlist_copies": current_quantity,
+                }
+            existing.quantity = next_quantity
+            db.commit()
             return {
-                "message": "Card already in wishlist",
-                "added": 0,
-                "skipped": 1,
+                "message": "Wishlist quantity updated",
+                "added": 1,
+                "added_copies": actual_added,
+                "skipped": 0,
                 "skipped_complete": 0,
-                "skipped_existing": 1,
+                "skipped_existing": 0,
                 "missing_copies": 0,
+                "wishlist_copies": next_quantity,
             }
 
     missing_copies = plan.missing_copies if plan else 0
+    wishlist_copies = plan.wishlist_copies if plan else 0
 
     try:
-        db.add(WishlistItem(
-            card_id=bc.card_id,
-            user_id=current_user.id,
-            created_at=datetime.datetime.utcnow(),
-        ))
+        if plan:
+            added, added_copies = _apply_wishlist_additions(db, current_user, plan.additions)
+        else:
+            db.add(WishlistItem(
+                card_id=bc.card_id,
+                quantity=requested_quantity,
+                user_id=current_user.id,
+                created_at=datetime.datetime.utcnow(),
+            ))
+            added = 1
+            added_copies = requested_quantity
         db.commit()
     except IntegrityError:
         db.rollback()
         return {
             "message": "Card already in wishlist",
             "added": 0,
+            "added_copies": 0,
             "skipped": 1,
             "skipped_complete": 0,
             "skipped_existing": 1,
             "missing_copies": missing_copies,
+            "wishlist_copies": wishlist_copies,
         }
     return {
         "message": "Card added to wishlist",
-        "added": 1,
+        "added": added,
+        "added_copies": added_copies,
         "skipped": 0,
         "skipped_complete": 0,
         "skipped_existing": 0,
         "missing_copies": missing_copies,
+        "wishlist_copies": wishlist_copies,
     }
 
 
@@ -1191,51 +1264,29 @@ def add_binder_cards_to_wishlist(
             card_ids.append(card_id)
 
     if not card_ids:
-        return {"added": 0, "skipped": 0, "skipped_complete": 0, "skipped_existing": 0, "missing_copies": 0, "checked": 0}
+        return {"added": 0, "added_copies": 0, "skipped": 0, "skipped_complete": 0, "skipped_existing": 0, "missing_copies": 0, "wishlist_copies": 0, "checked": 0}
 
     owned_quantities = _user_collection_quantities(db, current_user, card_ids)
-    existing_ids = {
-        card_id for (card_id,) in db.query(WishlistItem.card_id).filter(
-            WishlistItem.user_id == current_user.id,
-            WishlistItem.card_id.in_(card_ids),
-        ).all()
-    }
-    plan = plan_missing_wishlist_additions(entries, owned_quantities, existing_ids)
+    wishlist_quantities = _user_wishlist_quantities(db, current_user, card_ids)
+    plan = plan_missing_wishlist_additions(entries, owned_quantities, wishlist_quantities)
 
-    added = 0
     try:
-        for card_id in plan.card_ids_to_add:
-            db.add(WishlistItem(
-                card_id=card_id,
-                user_id=current_user.id,
-                created_at=datetime.datetime.utcnow(),
-            ))
-            added += 1
+        added, added_copies = _apply_wishlist_additions(db, current_user, plan.additions)
         db.commit()
     except IntegrityError:
         db.rollback()
-        existing_ids = {
-            card_id for (card_id,) in db.query(WishlistItem.card_id).filter(
-                WishlistItem.user_id == current_user.id,
-                WishlistItem.card_id.in_(card_ids),
-            ).all()
-        }
-        plan = plan_missing_wishlist_additions(entries, owned_quantities, existing_ids)
-        added = 0
-        for card_id in plan.card_ids_to_add:
-            db.add(WishlistItem(
-                card_id=card_id,
-                user_id=current_user.id,
-                created_at=datetime.datetime.utcnow(),
-            ))
-            added += 1
+        wishlist_quantities = _user_wishlist_quantities(db, current_user, card_ids)
+        plan = plan_missing_wishlist_additions(entries, owned_quantities, wishlist_quantities)
+        added, added_copies = _apply_wishlist_additions(db, current_user, plan.additions)
         db.commit()
     return {
         "added": added,
+        "added_copies": added_copies,
         "skipped": plan.skipped,
         "skipped_complete": plan.skipped_complete,
         "skipped_existing": plan.skipped_existing,
         "missing_copies": plan.missing_copies,
+        "wishlist_copies": plan.wishlist_copies,
         "checked": plan.checked,
     }
 

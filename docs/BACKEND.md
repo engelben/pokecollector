@@ -56,7 +56,7 @@ FastAPI app entry point: `backend/main.py`.
 | GET | `/api/sets/{set_id}/checklist` | Set checklist |
 | GET | `/api/wishlist/` | Wishlist |
 | POST | `/api/wishlist/` | Add wishlist item |
-| PUT | `/api/wishlist/{item_id}` | Update price alerts |
+| PUT | `/api/wishlist/{item_id}` | Update wishlist quantity and price alerts |
 | DELETE | `/api/wishlist/{item_id}` | Remove wishlist item |
 | GET | `/api/binders/` | Binders |
 | POST | `/api/binders/` | Create binder |

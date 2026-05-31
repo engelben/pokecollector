@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Plus, Check, Trash2, X } from 'lucide-react'
-import { getSetChecklist, addToCollection, updateCollectionItem, removeFromCollection } from '../api/client'
+import { ArrowLeft, Plus, Check, Trash2, X, Heart } from 'lucide-react'
+import { getSetChecklist, addToCollection, addToWishlist, updateCollectionItem, removeFromCollection } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
@@ -125,7 +125,7 @@ function OwnedVersionRow({ item, onQuantityChange, onRemove, isUpdating, isRemov
   )
 }
 
-function SetCardActionModal({ card, setLang, onClose, onAdd, onQuantityChange, onRemove, isAdding, isUpdatingQuantity, isRemoving, t }) {
+function SetCardActionModal({ card, setLang, onClose, onAdd, onAddWishlist, onQuantityChange, onRemove, isAdding, isAddingWishlist, isUpdatingQuantity, isRemoving, t }) {
   const [addQuantity, setAddQuantity] = useState(1)
   const [addCondition, setAddCondition] = useState('NM')
   const [addVariant, setAddVariant] = useState('Normal')
@@ -249,9 +249,22 @@ function SetCardActionModal({ card, setLang, onClose, onAdd, onQuantityChange, o
                 />
               </div>
 
-              <button type="submit" disabled={isAdding} className="btn-primary w-full justify-center">
-                <Plus size={14} /> {isAdding ? t('card.adding') : t('collection.addVersionToCollection')}
-              </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button type="submit" disabled={isAdding} className="btn-primary justify-center">
+                  <Plus size={14} /> {isAdding ? t('card.adding') : t('collection.addVersionToCollection')}
+                </button>
+                <button
+                  type="button"
+                  disabled={isAddingWishlist}
+                  className="btn-ghost justify-center"
+                  onClick={() => onAddWishlist({
+                    card,
+                    quantity: Math.max(1, Math.min(99, parseInt(addQuantity, 10) || 1)),
+                  })}
+                >
+                  <Heart size={14} /> {t('binderTypes.addToWishlist')}
+                </button>
+              </div>
             </form>
 
             {ownedItems.length > 0 && (
@@ -313,6 +326,19 @@ export default function SetDetail() {
       setSelectedCard(null)
     },
     onError: () => toast.error(t('card.addFailed')),
+  })
+
+  const wishlistMutation = useMutation({
+    mutationFn: ({ card, quantity = 1 }) => addToWishlist({
+      card_id: card.id,
+      quantity,
+    }),
+    onSuccess: () => {
+      toast.success(t('card.addedToWishlist'))
+      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
+      setSelectedCard(null)
+    },
+    onError: () => toast.error(t('card.wishlistFailed')),
   })
 
   const removeMutation = useMutation({
@@ -533,9 +559,11 @@ export default function SetDetail() {
         setLang={setLang}
         onClose={() => setSelectedCard(null)}
         onAdd={(payload) => addMutation.mutate(payload)}
+        onAddWishlist={(payload) => wishlistMutation.mutate(payload)}
         onQuantityChange={(item, quantity) => quantityMutation.mutate({ item, quantity })}
         onRemove={(item) => removeMutation.mutate(item)}
         isAdding={addMutation.isPending}
+        isAddingWishlist={wishlistMutation.isPending}
         isUpdatingQuantity={quantityMutation.isPending}
         isRemoving={removeMutation.isPending}
         t={t}

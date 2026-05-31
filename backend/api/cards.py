@@ -614,6 +614,7 @@ def migrate_custom_card(
     for custom_wishlist in custom_wishlist_items:
         existing_wishlist = existing_wishlist_by_user.get(custom_wishlist.user_id)
         if existing_wishlist:
+            existing_wishlist.quantity = min(99, max(int(existing_wishlist.quantity or 1), 1) + max(int(custom_wishlist.quantity or 1), 1))
             if existing_wishlist.price_alert_above is None:
                 existing_wishlist.price_alert_above = custom_wishlist.price_alert_above
             if existing_wishlist.price_alert_below is None:
@@ -626,33 +627,32 @@ def migrate_custom_card(
             existing_wishlist_by_user[custom_wishlist.user_id] = custom_wishlist
     db.flush()
 
-    # 4. Re-assign binder cards
-    try:
-        with db.begin_nested():
-            db.query(BinderCard).filter(
-                BinderCard.card_id == custom_card_id
-            ).update({"card_id": composite_api_card_id}, synchronize_session=False)
-            db.flush()
-    except IntegrityError:
-        custom_binder_cards = db.query(BinderCard).filter(
-            BinderCard.card_id == custom_card_id
-        ).all()
-        binder_ids = {binder_card.binder_id for binder_card in custom_binder_cards}
-        existing_binder_ids = set()
-        if binder_ids:
-            existing_binder_ids = {
-                binder_id
-                for (binder_id,) in db.query(BinderCard.binder_id).filter(
-                    BinderCard.card_id == composite_api_card_id,
-                    BinderCard.binder_id.in_(binder_ids),
-                ).all()
-            }
-        for binder_card in custom_binder_cards:
-            if binder_card.binder_id in existing_binder_ids:
-                db.delete(binder_card)
-            else:
-                binder_card.card_id = composite_api_card_id
-        db.flush()
+    # 4. Re-assign binder cards. If the API card is already present in the same
+    # binder slot, merge required quantities instead of dropping deck copies.
+    custom_binder_cards = db.query(BinderCard).filter(
+        BinderCard.card_id == custom_card_id
+    ).order_by(BinderCard.id.asc()).all()
+    for binder_card in custom_binder_cards:
+        existing_query = db.query(BinderCard).filter(
+            BinderCard.id != binder_card.id,
+            BinderCard.binder_id == binder_card.binder_id,
+            BinderCard.card_id == composite_api_card_id,
+        )
+        if binder_card.collection_item_id is None:
+            existing_query = existing_query.filter(BinderCard.collection_item_id.is_(None))
+        else:
+            existing_query = existing_query.filter(BinderCard.collection_item_id == binder_card.collection_item_id)
+        existing_binder_card = existing_query.order_by(BinderCard.id.asc()).first()
+        if existing_binder_card:
+            existing_binder_card.required_quantity = min(
+                99,
+                max(int(existing_binder_card.required_quantity or 1), 1)
+                + max(int(binder_card.required_quantity or 1), 1),
+            )
+            db.delete(binder_card)
+        else:
+            binder_card.card_id = composite_api_card_id
+    db.flush()
 
     # 5. Update the match before deleting the old custom card so the FK no longer points at it
     match.custom_card_id = composite_api_card_id

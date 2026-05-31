@@ -7,12 +7,27 @@ from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
+class WishlistAddition:
+    card_id: str
+    quantity: int
+
+
+@dataclass(frozen=True)
 class MissingWishlistPlan:
-    card_ids_to_add: list[str] = field(default_factory=list)
+    additions: list[WishlistAddition] = field(default_factory=list)
     checked: int = 0
     missing_copies: int = 0
+    wishlist_copies: int = 0
     skipped_complete: int = 0
     skipped_existing: int = 0
+
+    @property
+    def card_ids_to_add(self) -> list[str]:
+        return [addition.card_id for addition in self.additions]
+
+    @property
+    def copies_to_add(self) -> int:
+        return sum(addition.quantity for addition in self.additions)
 
     @property
     def skipped(self) -> int:
@@ -31,16 +46,21 @@ def _safe_int(value: object, default: int = 0) -> int:
 def plan_missing_wishlist_additions(
     entries: Iterable[tuple[str | None, int | None]],
     owned_quantities: Mapping[str, int | None],
-    existing_wishlist_card_ids: set[str] | frozenset[str] | None = None,
+    existing_wishlist_quantities: Mapping[str, int | None] | set[str] | frozenset[str] | None = None,
 ) -> MissingWishlistPlan:
-    """Return unique cards that are still missing and not already in the global wishlist.
+    """Return wishlist quantity deltas needed to satisfy deck or binder needs.
 
-    Wishlist binders can represent deck lists with required quantities, while the
-    global wishlist stores one row per card. This helper keeps the math explicit:
-    aggregate required quantities per card, subtract all owned copies, then only
-    add cards whose missing delta is greater than zero.
+    Wishlist binders can represent deck lists with required quantities. The global
+    wishlist now stores one row per card with a quantity. This helper aggregates
+    required quantities per card, subtracts owned copies, subtracts existing
+    wishlist quantity, then returns only the additional copies still needed.
     """
-    existing_wishlist_card_ids = existing_wishlist_card_ids or set()
+    existing_wishlist_quantities = existing_wishlist_quantities or {}
+    if isinstance(existing_wishlist_quantities, (set, frozenset)):
+        wishlist_quantities = {card_id: 1 for card_id in existing_wishlist_quantities}
+    else:
+        wishlist_quantities = existing_wishlist_quantities
+
     required_by_card: dict[str, int] = {}
     ordered_card_ids: list[str] = []
 
@@ -52,28 +72,33 @@ def plan_missing_wishlist_additions(
             required_by_card[card_id] = 0
         required_by_card[card_id] += max(_safe_int(required_quantity, 1), 1)
 
-    card_ids_to_add: list[str] = []
+    additions: list[WishlistAddition] = []
     missing_copies = 0
+    wishlist_copies = 0
     skipped_complete = 0
     skipped_existing = 0
 
     for card_id in ordered_card_ids:
         required_quantity = required_by_card[card_id]
         owned_quantity = max(_safe_int(owned_quantities.get(card_id), 0), 0)
-        missing_quantity = max(required_quantity - owned_quantity, 0)
-        missing_copies += missing_quantity
-        if missing_quantity <= 0:
+        wished_quantity = max(_safe_int(wishlist_quantities.get(card_id), 0), 0)
+        remaining_wanted = max(required_quantity - owned_quantity, 0)
+        additional_quantity = max(remaining_wanted - wished_quantity, 0)
+        missing_copies += remaining_wanted
+        wishlist_copies += min(wished_quantity, remaining_wanted)
+        if remaining_wanted <= 0:
             skipped_complete += 1
             continue
-        if card_id in existing_wishlist_card_ids:
+        if additional_quantity <= 0:
             skipped_existing += 1
             continue
-        card_ids_to_add.append(card_id)
+        additions.append(WishlistAddition(card_id=card_id, quantity=additional_quantity))
 
     return MissingWishlistPlan(
-        card_ids_to_add=card_ids_to_add,
+        additions=additions,
         checked=len(ordered_card_ids),
         missing_copies=missing_copies,
+        wishlist_copies=wishlist_copies,
         skipped_complete=skipped_complete,
         skipped_existing=skipped_existing,
     )

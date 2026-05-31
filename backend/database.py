@@ -174,6 +174,13 @@ def _run_migrations(conn):
         "ALTER TABLE collection ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)",
         "CREATE INDEX IF NOT EXISTS idx_collection_grouping ON collection (user_id, card_id, variant, lang, condition, purchase_price)",
         "ALTER TABLE wishlist ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)",
+        "ALTER TABLE wishlist ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 1",
+        "UPDATE wishlist SET quantity = 1 WHERE quantity IS NULL OR quantity < 1",
+        "UPDATE wishlist SET quantity = 99 WHERE quantity > 99",
+        "ALTER TABLE wishlist ALTER COLUMN quantity SET DEFAULT 1",
+        "ALTER TABLE wishlist ALTER COLUMN quantity SET NOT NULL",
+        "ALTER TABLE wishlist DROP CONSTRAINT IF EXISTS ck_wishlist_quantity_range",
+        "ALTER TABLE wishlist ADD CONSTRAINT ck_wishlist_quantity_range CHECK (quantity >= 1 AND quantity <= 99)",
         "ALTER TABLE wishlist DROP CONSTRAINT IF EXISTS wishlist_card_id_key",
         "ALTER TABLE wishlist DROP CONSTRAINT IF EXISTS uq_wishlist_card_id",
         """DO $$
