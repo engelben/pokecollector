@@ -132,6 +132,7 @@ export function CustomCardModal({ onClose, onCreated, sets: setsProp = [], autoA
     onSuccess: (res) => {
       toast.success(res?.data?.message || t('common.success'))
       queryClient.invalidateQueries({ queryKey: ['collection'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['custom-cards'] })
       queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
       onClose()
