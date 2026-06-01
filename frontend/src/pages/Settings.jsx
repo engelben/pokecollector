@@ -1374,9 +1374,9 @@ function UsersTab({ t, queryClient }) {
           </div>
           <div>
             <label className="text-xs text-text-secondary mb-1 block">{t('settings.users.role')}</label>
-            <select value={formRole} onChange={(e) => setFormRole(e.target.value)} className="input w-full" style={{ appearance: 'none' }}>
-              <option value="trainer" style={{ background: 'var(--color-card)', color: 'var(--color-text-primary)' }}>{t('settings.users.trainer')}</option>
-              <option value="admin" style={{ background: 'var(--color-card)', color: 'var(--color-text-primary)' }}>{t('settings.users.admin')}</option>
+            <select value={formRole} onChange={(e) => setFormRole(e.target.value)} className="select w-full">
+              <option value="trainer">{t('settings.users.trainer')}</option>
+              <option value="admin">{t('settings.users.admin')}</option>
             </select>
           </div>
           {!editingUser && (
