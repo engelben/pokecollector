@@ -431,7 +431,7 @@ function CollectionEditModal({ item, onClose }) {
 
   const binderSelect = (
     collectionBinders.length === 0 ? (
-      <div className="select text-sm flex items-center justify-center text-center text-text-muted cursor-not-allowed">
+      <div className="select select-no-arrow text-sm flex items-center justify-center text-center text-text-muted cursor-not-allowed">
         {t('collection.noCollectionBinders')}
       </div>
     ) : (
