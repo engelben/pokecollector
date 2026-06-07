@@ -734,6 +734,7 @@ export default function Collection() {
   const [filterVariant, setFilterVariant] = useState('')
   const [filterSet, setFilterSet] = useState('')
   const [filterType, setFilterType] = useState('')
+  const [filterLegality, setFilterLegality] = useState('')
   const [filterLang, setFilterLang] = useState('')
   const [filterMinPrice, setFilterMinPrice] = useState('')
   const [filterMaxPrice, setFilterMaxPrice] = useState('')
@@ -861,7 +862,7 @@ export default function Collection() {
     return [...all].sort()
   }, [items])
 
-  const hasActiveFilters = filterRarity || filterCondition || filterVariant || filterSet || filterType || filterLang || filterMinPrice || filterMaxPrice || filterDuplicates || searchText
+  const hasActiveFilters = filterRarity || filterCondition || filterVariant || filterSet || filterType || filterLegality || filterLang || filterMinPrice || filterMaxPrice || filterDuplicates || searchText
 
   const filtered = useMemo(() => {
     let result = items.filter(item => {
@@ -874,6 +875,7 @@ export default function Collection() {
         if (item.card?.set_ref?.id !== filterSet) return false
       }
       if (filterType && !(card?.types || []).includes(filterType)) return false
+      if (filterLegality === 'standard' && !item.standard_legal) return false
       if (filterLang && item.lang !== filterLang) return false
       if (filterMinPrice && marketPrice < parseFloat(filterMinPrice)) return false
       if (filterMaxPrice && marketPrice > parseFloat(filterMaxPrice)) return false
@@ -918,7 +920,7 @@ export default function Collection() {
     })
 
     return result
-  }, [items, filterRarity, filterCondition, filterVariant, filterSet, filterType, filterLang, filterMinPrice, filterMaxPrice, filterDuplicates, searchText, sortBy, sortOrder, pricePrimaryField])
+  }, [items, filterRarity, filterCondition, filterVariant, filterSet, filterType, filterLegality, filterLang, filterMinPrice, filterMaxPrice, filterDuplicates, searchText, sortBy, sortOrder, pricePrimaryField])
 
   const totalValue = filtered.reduce((sum, item) => sum + (getEffectivePrice(item.card, item.variant) * item.quantity), 0)
   const totalCards = filtered.reduce((sum, item) => sum + item.quantity, 0)
@@ -926,7 +928,7 @@ export default function Collection() {
 
   const resetFilters = () => {
     setFilterRarity(''); setFilterCondition(''); setFilterVariant('')
-    setFilterSet(''); setFilterType(''); setFilterLang(''); setFilterMinPrice('')
+    setFilterSet(''); setFilterType(''); setFilterLegality(''); setFilterLang(''); setFilterMinPrice('')
     setFilterMaxPrice(''); setFilterDuplicates(false); setSearchText('')
   }
 
@@ -1038,7 +1040,7 @@ export default function Collection() {
         </div>
 
         {showFilters && (
-          <div className="pt-3 border-t border-border grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-3">
+          <div className="pt-3 border-t border-border grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-3">
             <div>
               <label className="text-xs text-text-muted mb-1 block">{t('common.rarity')}</label>
               <select className="select py-1.5 text-sm" value={filterRarity} onChange={(e) => setFilterRarity(e.target.value)}>
@@ -1072,6 +1074,13 @@ export default function Collection() {
               <select className="select py-1.5 text-sm" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
                 <option value="">{t('collection.allTypes')}</option>
                 {types.map(tp => <option key={tp} value={tp}>{tp}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-text-muted mb-1 block">{t('collection.filterLegality')}</label>
+              <select className="select py-1.5 text-sm" value={filterLegality} onChange={(e) => setFilterLegality(e.target.value)}>
+                <option value="">{t('collection.allLegalities')}</option>
+                <option value="standard">{t('collection.standardLegal')}</option>
               </select>
             </div>
             <div>
