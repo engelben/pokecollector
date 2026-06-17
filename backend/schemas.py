@@ -160,6 +160,7 @@ class CollectionItemResponse(BaseModel):
     purchase_price: Optional[float] = None
     lang: str = "en"
     added_at: Optional[datetime] = None
+    standard_legal: bool = False
     card: Optional[CardWithSet] = None
 
     class Config:

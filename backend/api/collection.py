@@ -9,9 +9,9 @@ from schemas import CollectionItemCreate, CollectionItemUpdate, CollectionItemRe
 from services import pokemon_api
 from services.card_fallbacks import apply_cross_language_fallbacks, build_missing_language_card
 from services.card_numbers import card_number_matches
-from services.card_values import effective_market_price, normalize_price_field
 from services.card_visibility import visible_card_filter
 from services.digital_sets import digital_sets_enabled
+from services.standard_legality import is_standard_legal_card, is_standard_regulation_mark
 from services.tcgdex_languages import SUPPORTED_TCGDEX_LANGUAGES, has_lang_suffix, is_supported_tcgdex_language, normalize_tcgdex_language
 from services.collection_csv import collection_import_key, is_valid_collection_purchase_price, merge_collection_import_item, normalize_collection_variant
 import datetime
@@ -38,6 +38,29 @@ _SET_CODE_API_CACHE: Optional[dict[str, dict[str, List[dict]]]] = None
 def _get_item_price(item, price_field="price_trend"):
     """Return the selected market price for a collection item, respecting holo variant."""
     return effective_market_price(item.card, item.variant, price_field)
+
+
+def _collection_standard_legal_fingerprints(db: Session) -> set[str]:
+    rows = db.query(Card.playable_fingerprint, Card.regulation_mark).filter(
+        Card.is_custom.is_(False),
+        Card.playable_fingerprint.isnot(None),
+        Card.regulation_mark.isnot(None),
+    ).all()
+    return {
+        fingerprint
+        for fingerprint, regulation_mark in rows
+        if fingerprint and is_standard_regulation_mark(regulation_mark)
+    }
+
+
+def _annotate_standard_legality(items: list[CollectionItem], legal_fingerprints: set[str]) -> list[CollectionItem]:
+    for item in items:
+        item.standard_legal = is_standard_legal_card(item.card, legal_fingerprints)
+    return items
+
+
+def _annotate_item_standard_legality(db: Session, item: CollectionItem) -> CollectionItem:
+    return _annotate_standard_legality([item], _collection_standard_legal_fingerprints(db))[0]
 
 
 def _active_product_link_quantity(db: Session, current_user: User, collection_item_id: int) -> int:
@@ -346,7 +369,7 @@ def get_user_collection(
         CollectionItem.user_id == user_id,
         visible_card_filter(db, user_id, "all"),
     )
-    return query.all()
+    return _annotate_standard_legality(query.all(), _collection_standard_legal_fingerprints(db))
 
 
 @router.get("/", response_model=List[CollectionItemResponse])
@@ -376,7 +399,7 @@ def get_collection(
         query = query.order_by(sort_col.asc())
 
     items = query.all()
-    return items
+    return _annotate_standard_legality(items, _collection_standard_legal_fingerprints(db))
 
 
 @router.post("/", response_model=CollectionItemResponse)
@@ -417,7 +440,7 @@ def add_to_collection(
         existing.quantity += item.quantity or 1
         db.commit()
         db.refresh(existing)
-        return existing
+        return _annotate_item_standard_legality(db, existing)
     else:
         db_item = CollectionItem(
             card_id=effective_card_id,
@@ -432,7 +455,7 @@ def add_to_collection(
         db.add(db_item)
         db.commit()
         db.refresh(db_item)
-        return db_item
+        return _annotate_item_standard_legality(db, db_item)
 
 
 @router.post("/bulk-add", response_model=BulkCollectionAddResponse)
@@ -661,7 +684,7 @@ def update_collection_item(
 
     db.commit()
     db.refresh(item)
-    return item
+    return _annotate_item_standard_legality(db, item)
 
 
 @router.delete("/{item_id}")
