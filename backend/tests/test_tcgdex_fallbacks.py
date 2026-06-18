@@ -6,8 +6,12 @@ try:
     from sqlalchemy.orm import sessionmaker
 
     from database import Base
-    from models import Card, Setting
-    from services.card_fallbacks import apply_cross_language_fallbacks, build_missing_language_card
+    from models import Card, Set, Setting
+    from services.card_fallbacks import (
+        apply_cross_language_fallbacks,
+        build_missing_language_card,
+        build_missing_language_cards_for_set,
+    )
     FALLBACK_TEST_DEPS_AVAILABLE = True
 except ModuleNotFoundError:
     FALLBACK_TEST_DEPS_AVAILABLE = False
@@ -101,6 +105,8 @@ class TcgdexFallbackTests(unittest.TestCase):
             "pricing": {"cardmarket": {"trend": 4.56}},
         }
         with patch("services.card_fallbacks.pokemon_api.get_card", return_value=english_card) as get_card:
+            self.db.add(Set(id="sv2_en", tcg_set_id="sv2", name="SV2", lang="en"))
+            self.db.commit()
             parsed = build_missing_language_card(self.db, "sv2-3", "ja", default_set_id="sv2")
 
         get_card.assert_called_once_with("sv2-3", lang="en")
@@ -108,6 +114,42 @@ class TcgdexFallbackTests(unittest.TestCase):
         self.assertEqual(parsed["id"], "sv2-3_ja")
         self.assertEqual(parsed["lang"], "ja")
         self.assertEqual(parsed["data_source_lang"], "en")
+
+    def test_non_english_card_skips_live_fallback_when_english_set_is_not_synced(self):
+        parsed = {
+            "id": "PMCG1-025_ja",
+            "tcg_card_id": "PMCG1-025",
+            "lang": "ja",
+            "name": "Japan-only card",
+            "set_id": "PMCG1",
+            "number": "025",
+            "images_small": None,
+            "images_large": None,
+            "price_trend": None,
+        }
+
+        with patch("services.card_fallbacks.pokemon_api.get_card") as get_card:
+            result = apply_cross_language_fallbacks(self.db, parsed)
+
+        get_card.assert_not_called()
+        self.assertIsNone(result["price_trend"])
+        self.assertIsNone(result["images_small"])
+        self.assertIsNone(result["price_source_lang"])
+        self.assertIsNone(result["image_source_lang"])
+
+    def test_missing_language_card_skips_fetch_when_english_set_is_not_synced(self):
+        with patch("services.card_fallbacks.pokemon_api.get_card") as get_card:
+            parsed = build_missing_language_card(self.db, "PMCG1-025", "ja", default_set_id="PMCG1")
+
+        get_card.assert_not_called()
+        self.assertIsNone(parsed)
+
+    def test_missing_language_set_skips_fetch_when_english_set_is_not_synced(self):
+        with patch("services.card_fallbacks.pokemon_api.get_set_cards") as get_set_cards:
+            cards = build_missing_language_cards_for_set(self.db, "PMCG1", "ja", expected_total=10)
+
+        get_set_cards.assert_not_called()
+        self.assertEqual(cards, [])
 
 
 if __name__ == "__main__":

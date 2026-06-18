@@ -20,7 +20,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from models import Card, Setting
+from models import Card, Set, Setting
 from services import pokemon_api
 from services.price_utils import PRICE_FIELDS, has_valid_price, is_valid_price
 from services.tcgdex_languages import (
@@ -149,7 +149,16 @@ def _number_sort_key(value) -> tuple:
     return (prefix.casefold(), number, value)
 
 
-def _load_sibling_data(db: Session, tcg_card_id: str, lang: str) -> Optional[dict]:
+def _fallback_set_exists(db: Session, tcg_set_id: Optional[str], lang: str) -> bool:
+    if not tcg_set_id:
+        return True
+    return db.query(Set.id).filter(
+        Set.tcg_set_id == tcg_set_id,
+        Set.lang == lang,
+    ).first() is not None
+
+
+def _load_sibling_data(db: Session, tcg_card_id: str, lang: str, tcg_set_id: Optional[str] = None) -> Optional[dict]:
     sibling = db.query(Card).filter(
         Card.tcg_card_id == tcg_card_id,
         Card.lang == lang,
@@ -157,6 +166,15 @@ def _load_sibling_data(db: Session, tcg_card_id: str, lang: str) -> Optional[dic
     ).first()
     if sibling:
         return _card_to_data(sibling)
+
+    if not _fallback_set_exists(db, tcg_set_id, lang):
+        logger.debug(
+            "Skipping %s fallback fetch for %s because set %s is not synced in that language",
+            lang,
+            tcg_card_id,
+            tcg_set_id,
+        )
+        return None
 
     try:
         card_data = pokemon_api.get_card(tcg_card_id, lang=lang)
@@ -274,6 +292,15 @@ def build_missing_language_card(
             image_enabled=image_enabled,
         )
 
+    if not _fallback_set_exists(db, default_set_id, fallback_lang):
+        logger.debug(
+            "Skipping missing-language fallback fetch for %s in %s because set %s is not synced in that language",
+            tcg_card_id,
+            fallback_lang,
+            default_set_id,
+        )
+        return None
+
     try:
         card_data = pokemon_api.get_card(tcg_card_id, lang=fallback_lang)
     except Exception as exc:
@@ -331,22 +358,29 @@ def build_missing_language_cards_for_set(
 
     sources: list[Card | dict] = source_cards
     if not sources or (expected_total and len(sources) < expected_total):
-        try:
-            set_data = pokemon_api.get_set_cards(tcg_set_id, lang=fallback_lang)
-        except Exception as exc:
-            logger.debug("Failed to fetch set %s in %s for missing-language fallback: %s", tcg_set_id, fallback_lang, exc)
-            # Prefer partial cached sibling data over an empty checklist when the
-            # public sibling API is temporarily unreachable. Existing target
-            # rows are skipped below, so this only fills still-missing cards.
-            if not sources:
-                return []
-        else:
-            fetched_sources = sorted(
-                set_data.get("cards", []),
-                key=lambda card: _number_sort_key(card.get("localId")),
+        if not _fallback_set_exists(db, tcg_set_id, fallback_lang):
+            logger.debug(
+                "Skipping missing-language fallback fetch for set %s in %s because it is not synced in that language",
+                tcg_set_id,
+                fallback_lang,
             )
-            if len(fetched_sources) > len(sources):
-                sources = fetched_sources
+        else:
+            try:
+                set_data = pokemon_api.get_set_cards(tcg_set_id, lang=fallback_lang)
+            except Exception as exc:
+                logger.debug("Failed to fetch set %s in %s for missing-language fallback: %s", tcg_set_id, fallback_lang, exc)
+                # Prefer partial cached sibling data over an empty checklist when the
+                # public sibling API is temporarily unreachable. Existing target
+                # rows are skipped below, so this only fills still-missing cards.
+                if not sources:
+                    return []
+            else:
+                fetched_sources = sorted(
+                    set_data.get("cards", []),
+                    key=lambda card: _number_sort_key(card.get("localId")),
+                )
+                if len(fetched_sources) > len(sources):
+                    sources = fetched_sources
 
     parsed_cards = []
     for source in sources:
@@ -409,7 +443,7 @@ def apply_cross_language_fallbacks(
     if not ((need_price and price_enabled) or (need_image and image_enabled)):
         return parsed
 
-    sibling_data = _load_sibling_data(db, tcg_card_id, fallback_lang)
+    sibling_data = _load_sibling_data(db, tcg_card_id, fallback_lang, parsed.get("set_id"))
     if not sibling_data:
         return parsed
 
