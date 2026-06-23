@@ -295,6 +295,7 @@ const zhTw = {
     allTypes: '所有類型',
     searchCards: '搜尋卡牌...',
     clearFilters: '清空篩選',
+    foundIn: '獲得自',
   },
 
   // Sets

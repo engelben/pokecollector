@@ -293,6 +293,7 @@ const nl = {
     allTypes: 'Alle Types',
     searchCards: 'Zoek kaarten...',
     clearFilters: 'Filters wissen',
+    foundIn: 'Gevonden in',
   },
 
   // Sets

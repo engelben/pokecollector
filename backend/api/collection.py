@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from api.auth import get_current_user
 from database import get_db
-from models import CollectionItem, Card, ProductCard, Set, User
+from models import CollectionItem, Card, ProductCard, ProductPurchase, Set, User
 from schemas import CollectionItemCreate, CollectionItemUpdate, CollectionItemResponse, BulkCollectionAddRequest, BulkCollectionAddResponse
 from services import pokemon_api
 from services.card_fallbacks import apply_cross_language_fallbacks, build_missing_language_card
@@ -59,8 +59,67 @@ def _annotate_standard_legality(items: list[CollectionItem], legal_fingerprints:
     return items
 
 
-def _annotate_item_standard_legality(db: Session, item: CollectionItem) -> CollectionItem:
-    return _annotate_standard_legality([item], _collection_standard_legal_fingerprints(db))[0]
+def _product_source_payload(product_card: ProductCard, product) -> dict:
+    return {
+        "product_card_id": product_card.id,
+        "product_id": product.id,
+        "product_name": product.product_name,
+        "product_type": product.product_type,
+        "purchase_date": product.purchase_date,
+        "active_quantity": int(product_card.active_quantity or 0),
+        "initial_quantity": int(product_card.initial_quantity or 0),
+        "linked_at": product_card.linked_at,
+    }
+
+
+def _chunks(values: list[int], size: int):
+    for start in range(0, len(values), size):
+        yield values[start:start + size]
+
+
+def _annotate_product_sources(db: Session, current_user: User, items: list[CollectionItem]) -> list[CollectionItem]:
+    for item in items:
+        item.product_sources = []
+
+    item_ids = [item.id for item in items if item.id is not None]
+    if not item_ids:
+        return items
+
+    sources_by_item_id: dict[int, list[dict]] = {}
+    for chunk in _chunks(item_ids, 500):
+        rows = db.query(ProductCard, ProductPurchase).join(
+            ProductPurchase,
+            ProductPurchase.id == ProductCard.product_id,
+        ).filter(
+            ProductCard.user_id == current_user.id,
+            ProductPurchase.user_id == current_user.id,
+            ProductCard.collection_item_id.in_(chunk),
+            ProductCard.active_quantity > 0,
+        ).order_by(
+            ProductPurchase.purchase_date.desc(),
+            ProductCard.linked_at.desc(),
+            ProductCard.id.desc(),
+        ).all()
+
+        for product_card, product in rows:
+            if product_card.collection_item_id is None:
+                continue
+            sources_by_item_id.setdefault(product_card.collection_item_id, []).append(
+                _product_source_payload(product_card, product)
+            )
+
+    for item in items:
+        item.product_sources = sources_by_item_id.get(item.id, [])
+    return items
+
+
+def _annotate_collection_items(db: Session, current_user: User, items: list[CollectionItem]) -> list[CollectionItem]:
+    _annotate_standard_legality(items, _collection_standard_legal_fingerprints(db))
+    return _annotate_product_sources(db, current_user, items)
+
+
+def _annotate_collection_item(db: Session, current_user: User, item: CollectionItem) -> CollectionItem:
+    return _annotate_collection_items(db, current_user, [item])[0]
 
 
 def _active_product_link_quantity(db: Session, current_user: User, collection_item_id: int) -> int:
@@ -399,7 +458,7 @@ def get_collection(
         query = query.order_by(sort_col.asc())
 
     items = query.all()
-    return _annotate_standard_legality(items, _collection_standard_legal_fingerprints(db))
+    return _annotate_collection_items(db, current_user, items)
 
 
 @router.post("/", response_model=CollectionItemResponse)
@@ -440,7 +499,7 @@ def add_to_collection(
         existing.quantity += item.quantity or 1
         db.commit()
         db.refresh(existing)
-        return _annotate_item_standard_legality(db, existing)
+        return _annotate_collection_item(db, current_user, existing)
     else:
         db_item = CollectionItem(
             card_id=effective_card_id,
@@ -455,7 +514,7 @@ def add_to_collection(
         db.add(db_item)
         db.commit()
         db.refresh(db_item)
-        return _annotate_item_standard_legality(db, db_item)
+        return _annotate_collection_item(db, current_user, db_item)
 
 
 @router.post("/bulk-add", response_model=BulkCollectionAddResponse)
@@ -684,7 +743,7 @@ def update_collection_item(
 
     db.commit()
     db.refresh(item)
-    return _annotate_item_standard_legality(db, item)
+    return _annotate_collection_item(db, current_user, item)
 
 
 @router.delete("/{item_id}")

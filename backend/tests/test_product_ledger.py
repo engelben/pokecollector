@@ -14,7 +14,7 @@ try:
         link_collection_item_to_product,
         sell_product_card,
     )
-    from api.collection import update_collection_item
+    from api.collection import get_collection, update_collection_item
     from database import Base
     from models import Binder, BinderCard, Card, CollectionItem, ProductCard, ProductLedgerEntry, ProductPurchase, User
     from schemas import CollectionItemUpdate, ProductCardLinkCreate, ProductCardSaleCreate
@@ -232,6 +232,60 @@ class ProductLedgerApiTests(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 409)
         self.db.refresh(item)
         self.assertEqual(item.condition, "NM")
+
+    def test_collection_response_includes_active_product_source(self):
+        product = self.add_product()
+        item = self.add_collection_item(quantity=3)
+        link_collection_item_to_product(
+            product.id,
+            ProductCardLinkCreate(collection_item_id=item.id, quantity=2),
+            current_user=self.user,
+            db=self.db,
+        )
+
+        collection = get_collection(current_user=self.user, db=self.db)
+
+        self.assertEqual(len(collection), 1)
+        self.assertEqual(len(collection[0].product_sources), 1)
+        source = collection[0].product_sources[0]
+        self.assertEqual(source["product_id"], product.id)
+        self.assertEqual(source["product_name"], "Collection Box")
+        self.assertEqual(source["product_type"], "Collection Box")
+        self.assertEqual(source["active_quantity"], 2)
+
+    def test_collection_response_hides_missing_inactive_and_other_user_sources(self):
+        item = self.add_collection_item(quantity=3)
+        self.assertEqual(get_collection(current_user=self.user, db=self.db)[0].product_sources, [])
+
+        product = self.add_product()
+        link_collection_item_to_product(
+            product.id,
+            ProductCardLinkCreate(collection_item_id=item.id, quantity=1),
+            current_user=self.user,
+            db=self.db,
+        )
+        own_link = self.db.query(ProductCard).filter(ProductCard.user_id == self.user.id).one()
+        own_link.active_quantity = 0
+
+        other_product = self.add_product(user=self.other_user)
+        self.db.add(ProductCard(
+            product_id=other_product.id,
+            user_id=self.other_user.id,
+            card_id=item.card_id,
+            collection_item_id=item.id,
+            initial_quantity=1,
+            active_quantity=1,
+            sold_quantity=0,
+            condition=item.condition,
+            variant=item.variant,
+            lang=item.lang,
+            purchase_price=item.purchase_price,
+        ))
+        self.db.commit()
+
+        collection = get_collection(current_user=self.user, db=self.db)
+
+        self.assertEqual(collection[0].product_sources, [])
 
     def test_selling_final_collection_copy_removes_active_row_but_keeps_ledger_and_cleans_binder_ref(self):
         product = self.add_product()

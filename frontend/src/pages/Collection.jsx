@@ -2,7 +2,7 @@ import { useState, useMemo, useId, useRef, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Trash2, Check, X, Filter, SortAsc, Download, Upload, ChevronUp, ChevronDown, Search, PenLine, Grid2X2, List, Library, BookOpen, Heart, Copy, ArrowLeft } from 'lucide-react'
+import { Trash2, Check, X, Filter, SortAsc, Download, Upload, ChevronUp, ChevronDown, Search, PenLine, Grid2X2, List, Library, BookOpen, Heart, Copy, ArrowLeft, Package } from 'lucide-react'
 import { getCollection, updateCollectionItem, updateCardCustomImage, removeFromCollection, importCollectionCsv, exportCSV, exportPDF, getSets, addToCollection, getBinders, addCollectionItemToBinder, getWishlist, getApiErrorMessage } from '../api/client'
 import { CustomCardModal } from '../components/CardItem'
 import { useSettings } from '../contexts/SettingsContext'
@@ -111,6 +111,51 @@ const sortCardFilterLabels = (preferredOrder, labels) => {
 const toggleFilterValue = (values, value) => (
   values.includes(value) ? values.filter(item => item !== value) : [...values, value]
 )
+
+const getProductSourceSummary = (item) => {
+  const sources = (item?.product_sources || []).filter(source => (source?.active_quantity || 0) > 0)
+  if (sources.length === 0) return null
+  const primary = sources[0]
+  const totalQuantity = sources.reduce((sum, source) => sum + (source.active_quantity || 0), 0)
+  const label = sources.length > 1 ? `${primary.product_name} +${sources.length - 1}` : primary.product_name
+  const title = sources
+    .map(source => `${source.product_name}${source.active_quantity > 1 ? ` x${source.active_quantity}` : ''}`)
+    .join('\n')
+  return { sources, primary, totalQuantity, label, title }
+}
+
+function ProductSourceBadge({ item, t, compact = false, className = '' }) {
+  const summary = getProductSourceSummary(item)
+  if (!summary) return null
+
+  if (compact) {
+    return (
+      <span
+        title={`${t('collection.foundIn')}: ${summary.title}`}
+        className={clsx(
+          'inline-flex items-center justify-center rounded-full border border-yellow/40 bg-bg/85 text-yellow shadow-lg backdrop-blur-sm',
+          className || 'h-6 w-6'
+        )}
+      >
+        <Package size={12} />
+      </span>
+    )
+  }
+
+  return (
+    <span
+      title={`${t('collection.foundIn')}: ${summary.title}`}
+      className={clsx(
+        'inline-flex min-w-0 max-w-full items-center gap-1 rounded-full border border-yellow/30 bg-yellow/10 px-2 py-0.5 text-[10px] font-semibold leading-tight text-yellow',
+        className
+      )}
+    >
+      <Package size={12} className="flex-shrink-0" />
+      <span className="truncate">{summary.label}</span>
+      {summary.totalQuantity > 1 && <span className="flex-shrink-0">x{summary.totalQuantity}</span>}
+    </span>
+  )
+}
 
 
 const CSV_IMPORT_HEADER = 'set_code,number,quantity,condition,variant,lang,purchase_price'
@@ -312,6 +357,7 @@ function CollectionEditModal({ item, onClose }) {
   const queryClient = useQueryClient()
   const card = item.card
   const itemPriceInput = formatMoneyInputValue(item.purchase_price, exchangeRate)
+  const productSourceSummary = getProductSourceSummary(item)
 
   const [quantity, setQuantity] = useState(item.quantity)
   const [condition, setCondition] = useState(item.condition || 'NM')
@@ -571,6 +617,34 @@ function CollectionEditModal({ item, onClose }) {
             )}
           >
             {renderCardHeader()}
+
+            {productSourceSummary && (
+              <div className="mb-4 rounded-xl border border-yellow/25 bg-yellow/10 px-3 py-2">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-yellow">
+                  <Package size={14} />
+                  <span>{t('collection.foundIn')}</span>
+                </div>
+                <div className="mt-2 space-y-1">
+                  {productSourceSummary.sources.map(source => (
+                    <div key={source.product_card_id} className="flex items-center justify-between gap-3 text-sm">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-text-primary">{source.product_name}</p>
+                        {[source.product_type, source.purchase_date].filter(Boolean).length > 0 && (
+                          <p className="truncate text-xs text-text-muted">
+                            {[source.product_type, source.purchase_date].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
+                      </div>
+                      {source.active_quantity > 1 && (
+                        <span className="flex-shrink-0 rounded-full bg-bg/70 px-2 py-0.5 text-xs font-bold text-yellow">
+                          x{source.active_quantity}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Edit Form */}
             <div className="space-y-3">
@@ -1269,6 +1343,7 @@ export default function Collection() {
                       >
                         <CardImage src={resolveCardImageUrl(card)} alt={card?.name} className="w-full h-full object-cover" />
                         <HoloOverlay variant={item.variant} />
+                        <ProductSourceBadge item={item} t={t} compact className="absolute right-1 top-1 z-10 h-6 w-6" />
                       </div>
                       {(() => {
                         const abbr = card?.set_ref?.abbreviation
@@ -1391,6 +1466,7 @@ export default function Collection() {
                                   if (num) return <p className="text-[10px] font-mono text-text-muted">#{num}</p>
                                   return null
                                 })()}
+                                <ProductSourceBadge item={item} t={t} className="mt-1 max-w-[180px]" />
                               </div>
                             </div>
                           </td>
@@ -1456,6 +1532,8 @@ export default function Collection() {
                   if (item.variant) badges.push({ label: item.variant, variant: 'purple' })
                   if (item.condition) badges.push({ label: item.condition, variant: item.condition === 'Mint' ? 'green' : item.condition === 'NM' ? 'blue' : 'yellow' })
                   if (item.quantity > 1) badges.push({ label: `×${item.quantity}`, variant: 'red' })
+                  const sourceSummary = getProductSourceSummary(item)
+                  if (sourceSummary) badges.push({ label: `${t('collection.foundIn')}: ${sourceSummary.label}`, variant: 'gold' })
                   if (card?.is_custom) badges.push({ label: '✏️', variant: 'yellow' })
 
                   return (

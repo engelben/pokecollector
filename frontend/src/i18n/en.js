@@ -301,6 +301,7 @@ const en = {
     standardLegal: 'Standard',
     searchCards: 'Search cards...',
     clearFilters: 'Clear filters',
+    foundIn: 'Found in',
   },
 
   // Sets

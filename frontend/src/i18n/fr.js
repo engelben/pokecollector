@@ -293,6 +293,7 @@ const fr = {
     allTypes: 'Tous les types',
     searchCards: 'Rechercher des cartes...',
     clearFilters: 'Effacer les filtres',
+    foundIn: 'Trouvée dans',
   },
 
   // Sets

@@ -295,6 +295,7 @@ const pt = {
     allTypes: 'Todos os tipos',
     searchCards: 'Pesquisar cartas...',
     clearFilters: 'Limpar filtros',
+    foundIn: 'Encontrada em',
   },
 
   // Sets

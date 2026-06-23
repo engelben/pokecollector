@@ -295,6 +295,7 @@ const it = {
     allTypes: 'Tutti i tipi',
     searchCards: 'Cerca carte...',
     clearFilters: 'Cancella filtri',
+    foundIn: 'Trovata in',
   },
 
   // Sets

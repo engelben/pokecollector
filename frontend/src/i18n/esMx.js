@@ -295,6 +295,7 @@ const esMx = {
     allTypes: 'Todos los tipos',
     searchCards: 'Buscar cartas...',
     clearFilters: 'Borrar filtros',
+    foundIn: 'Encontrada en',
   },
 
   // Sets
