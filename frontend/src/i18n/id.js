@@ -295,6 +295,7 @@ const id = {
     allTypes: 'Semua Tipe',
     searchCards: 'Cari kartu...',
     clearFilters: 'Hapus filter',
+    foundIn: 'Ditemukan di',
   },
 
   // Sets

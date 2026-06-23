@@ -151,6 +151,17 @@ class BulkCollectionAddResponse(BaseModel):
     errors: List[str] = []
 
 
+class CollectionProductSourceResponse(BaseModel):
+    product_card_id: int
+    product_id: int
+    product_name: str
+    product_type: Optional[str] = None
+    purchase_date: Optional[date] = None
+    active_quantity: int = 0
+    initial_quantity: int = 0
+    linked_at: Optional[datetime] = None
+
+
 class CollectionItemResponse(BaseModel):
     id: int
     card_id: str
@@ -161,6 +172,7 @@ class CollectionItemResponse(BaseModel):
     lang: str = "en"
     added_at: Optional[datetime] = None
     standard_legal: bool = False
+    product_sources: List[CollectionProductSourceResponse] = Field(default_factory=list)
     card: Optional[CardWithSet] = None
 
     class Config:

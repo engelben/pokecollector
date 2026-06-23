@@ -295,6 +295,7 @@ const ko = {
     allTypes: '모든 타입',
     searchCards: '카드 검색...',
     clearFilters: '필터 지우기',
+    foundIn: '획득처',
   },
 
   // Sets

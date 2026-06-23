@@ -295,6 +295,7 @@ const ru = {
     allTypes: 'Все типы',
     searchCards: 'Искать карты...',
     clearFilters: 'Очистить фильтры',
+    foundIn: 'Найдена в',
   },
 
   // Sets

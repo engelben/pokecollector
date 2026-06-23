@@ -293,6 +293,7 @@ const th = {
     allTypes: 'ทุกประเภท',
     searchCards: 'ค้นหาการ์ด...',
     clearFilters: 'ล้างตัวกรอง',
+    foundIn: 'พบใน',
   },
 
   // Sets

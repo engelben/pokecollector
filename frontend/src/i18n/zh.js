@@ -295,6 +295,7 @@ const zh = {
     allTypes: '所有类型',
     searchCards: '搜索卡牌...',
     clearFilters: '清空筛选',
+    foundIn: '获得自',
   },
 
   // Sets

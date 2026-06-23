@@ -293,6 +293,7 @@ const sv = {
     allTypes: 'Alla typer',
     searchCards: 'Sök kort...',
     clearFilters: 'Rensa filter',
+    foundIn: 'Hittad i',
   },
 
   // Sets

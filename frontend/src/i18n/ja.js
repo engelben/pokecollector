@@ -295,6 +295,7 @@ const ja = {
     allTypes: 'すべてのタイプ',
     searchCards: 'カードを検索...',
     clearFilters: 'フィルターをクリア',
+    foundIn: '入手元',
   },
 
   // Sets
