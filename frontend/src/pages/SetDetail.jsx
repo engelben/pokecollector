@@ -516,17 +516,12 @@ export default function SetDetail() {
               </div>
             )}
 
-            <FallbackBadges
-              card={card}
-              className="absolute left-1 right-1 bottom-5 z-10 justify-center pointer-events-none"
-              compact
-              variant="overlay"
-            />
-
-            <VariantPills
-              rows={card.owned_items || []}
-              className="absolute left-1 right-1 bottom-5 z-10 justify-center pointer-events-none"
-            />
+            {/* Both overlays share one column so a card with a fallback badge and owned
+                prints stacks them instead of colliding at the same offset. */}
+            <div className="absolute left-1 right-1 bottom-5 z-10 flex flex-col items-center gap-0.5 pointer-events-none">
+              <FallbackBadges card={card} className="justify-center" compact variant="overlay" />
+              <VariantPills rows={card.owned_items || []} className="justify-center" />
+            </div>
 
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
               <p className="text-white text-xs font-medium text-center px-1 line-clamp-2">{card.name}</p>

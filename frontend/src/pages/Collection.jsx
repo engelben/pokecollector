@@ -1449,7 +1449,7 @@ export default function Collection() {
           {filtered.length > 0 && (
             <div className="flex items-center justify-between text-sm pt-1 px-1">
               <span className="text-text-muted">
-                {groupedCards.length} {t('collection.cards')} · {filtered.length} {t('collection.filtered')}
+                {groupedCards.length} {t('collection.cards')}
               </span>
               <span className="font-bold text-gold">{formatPrice(totalValue)}</span>
             </div>
