@@ -1417,7 +1417,7 @@ export default function Collection() {
                           }
                           return null
                         })()}
-                        <VariantPills rows={group.rows} className="mt-1" />
+                        <VariantPills rows={group.rows} className="mt-2 mb-0.5" />
                         <div className="flex flex-wrap gap-0.5 mt-0.5 px-0.5">
                           {/* On stacked tiles the variant pills already show accurate owned
                               quantities/variants per print; item is only rows[0] here, so a

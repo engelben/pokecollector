@@ -1,11 +1,15 @@
 // Single source of truth for the four canonical prints: their canonical order,
 // their display code, and their pill styling. CARD_VARIANTS and VARIANT_PILL_META
 // are both derived from this one list instead of repeating the variant names.
+// Backgrounds are solid rather than tinted: the pills overlay card art in the set
+// grid, where a translucent fill washes out against the illustration.
 const VARIANT_DEFINITIONS = [
-  { name: 'Normal',        code: 'NOR', className: 'bg-bg-elevated text-text-secondary border-border' },
-  { name: 'Holo',          code: 'HOL', className: 'bg-purple-500/15 text-purple-300 border-purple-500/30' },
-  { name: 'Reverse Holo',  code: 'REV', className: 'bg-blue/15 text-blue border-blue/30' },
-  { name: 'First Edition', code: '1ST', className: 'bg-yellow/15 text-yellow border-yellow/30' },
+  { name: 'Normal',        code: 'NOR', className: 'bg-zinc-700 text-white border-zinc-500' },
+  { name: 'Holo',          code: 'HOL', className: 'bg-purple-600 text-white border-purple-400' },
+  // blue/yellow are redefined in tailwind.config as {DEFAULT, subtle}, so their
+  // numeric scale (blue-300, yellow-200) does not exist - borders use alpha instead.
+  { name: 'Reverse Holo',  code: 'REV', className: 'bg-blue text-white border-white/30' },
+  { name: 'First Edition', code: '1ST', className: 'bg-yellow text-black border-black/20' },
 ]
 
 export const CARD_VARIANTS = VARIANT_DEFINITIONS.map(v => v.name)
