@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getOwnedVariants, getPrimaryVariant, groupCollectionByCard } from './cardVariants'
+import { getOwnedVariants, getPrimaryVariant, groupCollectionByCard, sortRowsByVariant } from './cardVariants'
 
 const row = (over = {}) => ({
   id: 1, card_id: 'sv01-003_en', card: { id: 'sv01-003_en', name: 'Card' },
@@ -61,6 +61,64 @@ describe('getOwnedVariants', () => {
       row({ id: 2, variant: 'Alpha Promo' }),
     ])
     expect(result.map(entry => entry.variant)).toEqual(['Alpha Promo', 'Zeta Promo'])
+  })
+})
+
+describe('getOwnedVariants — zero quantities', () => {
+  it('omits a variant whose total quantity is zero', () => {
+    const result = getOwnedVariants([
+      row({ id: 1, variant: 'Normal', quantity: 0 }),
+      row({ id: 2, variant: 'Reverse Holo', quantity: 1 }),
+    ])
+    expect(result).toEqual([{ variant: 'Reverse Holo', quantity: 1 }])
+  })
+
+  it('omits a variant whose quantity is null', () => {
+    expect(getOwnedVariants([row({ variant: 'Normal', quantity: null })])).toEqual([])
+  })
+
+  it('keeps a variant whose rows sum above zero even if one row is zero', () => {
+    const result = getOwnedVariants([
+      row({ id: 1, variant: 'Normal', condition: 'NM', quantity: 0 }),
+      row({ id: 2, variant: 'Normal', condition: 'LP', quantity: 2 }),
+    ])
+    expect(result).toEqual([{ variant: 'Normal', quantity: 2 }])
+  })
+})
+
+describe('sortRowsByVariant', () => {
+  it('orders rows canonically regardless of incoming order', () => {
+    const rows = [
+      row({ id: 1, variant: 'Reverse Holo' }),
+      row({ id: 2, variant: 'Normal' }),
+      row({ id: 3, variant: 'First Edition' }),
+      row({ id: 4, variant: 'Holo' }),
+    ]
+    expect(sortRowsByVariant(rows).map(r => r.variant)).toEqual([
+      'Normal', 'Holo', 'Reverse Holo', 'First Edition',
+    ])
+  })
+
+  it('keeps rows of the same variant in their original relative order', () => {
+    const rows = [
+      row({ id: 1, variant: 'Normal', condition: 'LP' }),
+      row({ id: 2, variant: 'Normal', condition: 'NM' }),
+    ]
+    expect(sortRowsByVariant(rows).map(r => r.condition)).toEqual(['LP', 'NM'])
+  })
+
+  it('places non-canonical variants after the four canonical prints', () => {
+    const rows = [
+      row({ id: 1, variant: 'Full Art' }),
+      row({ id: 2, variant: 'Normal' }),
+    ]
+    expect(sortRowsByVariant(rows).map(r => r.variant)).toEqual(['Normal', 'Full Art'])
+  })
+
+  it('does not mutate the array it is given', () => {
+    const rows = [row({ id: 1, variant: 'Holo' }), row({ id: 2, variant: 'Normal' })]
+    sortRowsByVariant(rows)
+    expect(rows.map(r => r.variant)).toEqual(['Holo', 'Normal'])
   })
 })
 

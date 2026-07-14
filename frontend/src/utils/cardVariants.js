@@ -54,18 +54,31 @@ export const getOwnedVariants = (rows = []) => {
     totals.set(variant, (totals.get(variant) || 0) + (row?.quantity || 0))
   }
 
+  // Test the summed quantity, not key presence: a row with quantity 0 or null must not
+  // produce a pill claiming ownership of zero copies.
   const ordered = VARIANT_ORDER
-    .filter(variant => totals.has(variant))
+    .filter(variant => totals.get(variant) > 0)
     .map(variant => ({ variant, quantity: totals.get(variant) }))
 
   // Anything outside the four canonical prints (a hand-edited CSV import, say) still
   // gets a pill rather than vanishing.
   const unknown = [...totals.keys()]
-    .filter(variant => !VARIANT_ORDER.includes(variant))
+    .filter(variant => !VARIANT_ORDER.includes(variant) && totals.get(variant) > 0)
     .sort()
     .map(variant => ({ variant, quantity: totals.get(variant) }))
 
   return [...ordered, ...unknown]
+}
+
+// Canonical ordering for a card's collection rows, so the edit modal's version tabs
+// appear in the same order as the pills on the tile. Non-canonical prints sort last.
+// Stable within a variant, and non-mutating.
+export const sortRowsByVariant = (rows = []) => {
+  const rank = (row) => {
+    const index = VARIANT_ORDER.indexOf(row?.variant || 'Normal')
+    return index === -1 ? VARIANT_ORDER.length : index
+  }
+  return [...rows].sort((a, b) => rank(a) - rank(b))
 }
 
 // Picks the single variant that should represent a stack of rows (e.g. which holo

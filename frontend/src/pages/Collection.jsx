@@ -23,7 +23,7 @@ import { tcgdexLanguageBadgeClass, tcgdexLanguageLabel } from '../utils/tcgdexLa
 import { invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
 import { useVisibleTcgdexLanguages } from '../hooks/useVisibleTcgdexLanguages'
 import { formatMoneyInputValue, parseMoneyInputValue } from '../utils/moneyInput'
-import { groupCollectionByCard, getPrimaryVariant } from '../utils/cardVariants'
+import { groupCollectionByCard, getPrimaryVariant, sortRowsByVariant } from '../utils/cardVariants'
 import VariantPills from '../components/VariantPills'
 
 function TiltBinderCard({ className, onClick, children }) {
@@ -124,6 +124,26 @@ const getProductSourceSummary = (item) => {
     .map(source => `${source.product_name}${source.active_quantity > 1 ? ` x${source.active_quantity}` : ''}`)
     .join('\n')
   return { sources, primary, totalQuantity, label, title }
+}
+
+// A stacked tile represents several collection rows, and each row carries its own
+// product sources. Reading them off rows[0] alone would hide the provenance of every
+// other row (and flip with the sort order, since rows[0] is order-dependent), so the
+// tile's badge merges sources across the stack, summing quantities per product.
+const mergeProductSources = (rows = []) => {
+  const merged = new Map()
+  for (const row of rows) {
+    for (const source of row?.product_sources || []) {
+      const key = source?.product_id ?? source?.product_name
+      const existing = merged.get(key)
+      if (existing) {
+        existing.active_quantity = (existing.active_quantity || 0) + (source.active_quantity || 0)
+      } else {
+        merged.set(key, { ...source })
+      }
+    }
+  }
+  return [...merged.values()]
 }
 
 function ProductSourceBadge({ item, t, compact = false, className = '' }) {
@@ -973,9 +993,12 @@ export default function Collection() {
   // Derived (not stored) so every path that opens the modal - tile click, list row
   // click, or a deep link via ?itemId=/?cardId= - gets accurate version tabs, and so
   // the 60s background refetch keeps them in sync automatically.
+  // Sorted canonically so the version tabs appear in the same order as the tile's pills.
+  // Sourced from the unfiltered `items` on purpose: with a variant filter active the tile
+  // shows only the matching pills, but every version must still be reachable for editing.
   const editingSiblings = useMemo(() => {
     if (!editingCollectionItem) return []
-    return items.filter(i => i.card_id === editingCollectionItem.card_id)
+    return sortRowsByVariant(items.filter(i => i.card_id === editingCollectionItem.card_id))
   }, [items, editingCollectionItem])
 
   const closeCollectionItemModal = () => {
@@ -1378,6 +1401,9 @@ export default function Collection() {
                   }
 
                   const primaryVariant = isStacked ? getPrimaryVariant(group.rows) : item.variant
+                  const tileProductItem = isStacked
+                    ? { ...item, product_sources: mergeProductSources(group.rows) }
+                    : item
 
                   return (
                     <div key={group.cardId} className="relative isolate">
@@ -1396,7 +1422,7 @@ export default function Collection() {
                         >
                           <CardImage src={resolveCardImageUrl(card)} alt={card?.name} className="w-full h-full object-cover" />
                           <HoloOverlay variant={primaryVariant} />
-                          <ProductSourceBadge item={item} t={t} compact className="absolute right-1 top-1 z-10 h-6 w-6" />
+                          <ProductSourceBadge item={tileProductItem} t={t} compact className="absolute right-1 top-1 z-10 h-6 w-6" />
                         </div>
                         {(() => {
                           const abbr = card?.set_ref?.abbreviation
