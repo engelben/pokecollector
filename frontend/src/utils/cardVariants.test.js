@@ -1,0 +1,76 @@
+import { describe, expect, it } from 'vitest'
+import { getOwnedVariants, groupCollectionByCard } from './cardVariants'
+
+const row = (over = {}) => ({
+  id: 1, card_id: 'sv01-003_en', card: { id: 'sv01-003_en', name: 'Card' },
+  quantity: 1, condition: 'NM', variant: 'Normal', lang: 'en', purchase_price: null,
+  ...over,
+})
+
+describe('getOwnedVariants', () => {
+  it('returns one entry per distinct owned variant', () => {
+    const result = getOwnedVariants([
+      row({ id: 1, variant: 'Normal' }),
+      row({ id: 2, variant: 'Reverse Holo' }),
+    ])
+    expect(result).toEqual([
+      { variant: 'Normal', quantity: 1 },
+      { variant: 'Reverse Holo', quantity: 1 },
+    ])
+  })
+
+  it('sums quantity across rows of the same variant with different conditions', () => {
+    const result = getOwnedVariants([
+      row({ id: 1, variant: 'Normal', condition: 'NM', quantity: 1 }),
+      row({ id: 2, variant: 'Normal', condition: 'LP', quantity: 2 }),
+    ])
+    expect(result).toEqual([{ variant: 'Normal', quantity: 3 }])
+  })
+
+  it('orders variants canonically regardless of row order', () => {
+    const result = getOwnedVariants([
+      row({ id: 1, variant: 'First Edition' }),
+      row({ id: 2, variant: 'Holo' }),
+      row({ id: 3, variant: 'Normal' }),
+    ])
+    expect(result.map(entry => entry.variant)).toEqual(['Normal', 'Holo', 'First Edition'])
+  })
+
+  it('treats a missing variant as Normal', () => {
+    expect(getOwnedVariants([row({ variant: null })])).toEqual([{ variant: 'Normal', quantity: 1 }])
+  })
+
+  it('returns an empty array for no rows', () => {
+    expect(getOwnedVariants([])).toEqual([])
+  })
+})
+
+describe('groupCollectionByCard', () => {
+  it('groups rows of the same card and sums total quantity', () => {
+    const groups = groupCollectionByCard([
+      row({ id: 1, variant: 'Normal', quantity: 1 }),
+      row({ id: 2, variant: 'Reverse Holo', quantity: 2 }),
+    ])
+    expect(groups).toHaveLength(1)
+    expect(groups[0].cardId).toBe('sv01-003_en')
+    expect(groups[0].rows).toHaveLength(2)
+    expect(groups[0].totalQuantity).toBe(3)
+  })
+
+  it('keeps the same card in different languages apart', () => {
+    const groups = groupCollectionByCard([
+      row({ id: 1, card_id: 'sv01-003_en', card: { id: 'sv01-003_en' } }),
+      row({ id: 2, card_id: 'sv01-003_de', card: { id: 'sv01-003_de' } }),
+    ])
+    expect(groups.map(group => group.cardId)).toEqual(['sv01-003_en', 'sv01-003_de'])
+  })
+
+  it('preserves the incoming order of first appearance', () => {
+    const groups = groupCollectionByCard([
+      row({ id: 1, card_id: 'b_en', card: { id: 'b_en' } }),
+      row({ id: 2, card_id: 'a_en', card: { id: 'a_en' } }),
+      row({ id: 3, card_id: 'b_en', card: { id: 'b_en' } }),
+    ])
+    expect(groups.map(group => group.cardId)).toEqual(['b_en', 'a_en'])
+  })
+})
