@@ -1,15 +1,17 @@
 import clsx from 'clsx'
-import { Circle, FlipHorizontal2, Medal, Sparkles } from 'lucide-react'
+import { Circle, Medal, Sparkles, SquareAsterisk } from 'lucide-react'
 import { useSettings } from '../contexts/SettingsContext'
 import { getOwnedVariants, VARIANT_PILL_META } from '../utils/cardVariants'
 
 // Icons live here rather than in cardVariants.js: that module is pure data and logic,
 // and should not pull in React components. A variant with no icon (a CSV-imported
 // "Full Art", say) falls back to its 3-letter code.
+// Holo and Reverse Holo are a deliberate pair: bare sparkles for foil on the art,
+// sparkle-inside-a-square for foil across the whole card.
 const VARIANT_ICONS = {
   'Normal': Circle,
   'Holo': Sparkles,
-  'Reverse Holo': FlipHorizontal2,
+  'Reverse Holo': SquareAsterisk,
   'First Edition': Medal,
 }
 
