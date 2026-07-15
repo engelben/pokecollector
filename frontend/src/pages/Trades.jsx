@@ -58,63 +58,63 @@ function TradeHealthBar({ outgoingValue, incomingValue, missingPrices, t, format
   const delta = incomingValue - outgoingValue
   const deltaPct = outgoingValue > 0 ? (delta / outgoingValue) * 100 : (incomingValue > 0 ? 100 : 0)
   let label = t('trades.emptyTrade')
-  let hp = 12
-  let barColor = '#777'
+  let score = 12
+  let barColor = '#6b7280'
 
   if (missingPrices) {
     label = t('trades.missingPrices')
-    hp = 45
+    score = 45
     barColor = '#f5c842'
   } else if (outgoingValue > 0 || incomingValue > 0) {
     if (deltaPct >= 15) {
       label = t('trades.youGain')
-      hp = 96
+      score = 96
       barColor = '#66bb6a'
     } else if (deltaPct >= -5) {
       label = t('trades.fairTrade')
-      hp = 72
+      score = 72
       barColor = '#66bb6a'
     } else if (deltaPct >= -15) {
       label = t('trades.closeTrade')
-      hp = 44
+      score = 44
       barColor = '#f5c842'
     } else {
       label = t('trades.youLose')
-      hp = 18
+      score = 18
       barColor = '#e3000b'
     }
   }
-  const barWidth = Math.max(6, Math.min(100, hp))
+  const barWidth = Math.max(6, Math.min(100, score))
 
   return (
-    <div className="rounded-lg border-2 border-black bg-[#f7edc5] p-3 text-black shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)] space-y-3">
+    <div className="rounded-lg border border-brand-red/30 bg-bg-card p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)] space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-black bg-white">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-brand-red/30 bg-brand-red/10">
             <ArrowRightLeft size={17} className="text-brand-red flex-shrink-0" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-black/60">{t('trades.tradeHp')}</p>
-            <p className="text-sm font-black text-black truncate">{label}</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-text-muted">{t('trades.tradeMeter')}</p>
+            <p className="text-sm font-black text-text-primary truncate">{label}</p>
             <p className={clsx('text-xs font-black', delta >= 0 ? 'text-green' : 'text-brand-red')}>
               {delta >= 0 ? '+' : ''}{formatPrice(delta)}
             </p>
           </div>
         </div>
-        <div className="text-right text-xs font-bold text-black/70 flex-shrink-0">
+        <div className="text-right text-xs font-bold text-text-muted flex-shrink-0">
           <div>{t('trades.give')}: {formatPrice(outgoingValue)}</div>
           <div>{t('trades.receive')}: {formatPrice(incomingValue)}</div>
         </div>
       </div>
-      <div className="flex items-center gap-2 rounded-full border-2 border-black bg-[#fff8d6] px-2 py-1">
-        <span className="text-[10px] font-black leading-none text-[#e35a00]">HP</span>
-        <div className="h-4 flex-1 rounded-full border border-black bg-[#1f1f1f] p-[3px]">
+      <div className="flex items-center gap-2 rounded-full border border-border bg-bg-elevated px-2 py-1">
+        <span className="text-[10px] font-black leading-none text-brand-red">{t('trades.profitLossShort')}</span>
+        <div className="h-4 flex-1 rounded-full border border-black/50 bg-black/50 p-[3px]">
           <div
             className="h-full rounded-full transition-all duration-300"
             style={{ width: `${barWidth}%`, backgroundColor: barColor }}
           />
         </div>
-        <span className="w-14 text-right text-[10px] font-black tabular-nums text-black">{hp}/100</span>
+        <span className="w-14 text-right text-[10px] font-black tabular-nums text-text-secondary">{score}/100</span>
       </div>
     </div>
   )
@@ -218,9 +218,9 @@ function CashHistoryRow({ item, t, formatPrice }) {
 
 function SelectedPanel({ title, total, children, formatPrice }) {
   return (
-    <div className="rounded-lg border-2 border-border bg-bg-card/70 p-3 space-y-3">
+    <div className="rounded-lg border-2 border-brand-red/30 bg-bg-card p-3 space-y-3 shadow-[0_0_0_1px_rgba(227,0,11,0.08)]">
       <div className="flex items-center justify-between gap-2 border-b border-border pb-2">
-        <h3 className="text-xs font-black uppercase tracking-[0.14em] text-text-secondary">{title}</h3>
+        <h3 className="text-xs font-black uppercase tracking-[0.14em] text-brand-red">{title}</h3>
         <span className="text-sm font-bold text-text-primary">{formatPrice(total)}</span>
       </div>
       {children}
@@ -291,7 +291,7 @@ export default function Trades() {
       const existing = prev.find(item => item.collectionItem.id === collectionItem.id)
       if (existing) {
         return prev.map(item => item.collectionItem.id === collectionItem.id
-          ? { ...item, quantity: Math.min((Number(item.quantity) || 1) + 1, collectionItem.quantity) }
+          ? { ...item, quantity: Math.min((Number(item.quantity) || 1) + 1, Number(collectionItem.quantity) || 999) }
           : item)
       }
       return [...prev, {
@@ -312,12 +312,7 @@ export default function Trades() {
     const lang = card.lang || card._lang || 'en'
     const price = getEffectiveCardPrice(card, variant, priceField)
     setIncoming(prev => {
-      const existing = prev.find(item => (
-        item.card.id === card.id
-        && item.variant === variant
-        && item.condition === condition
-        && item.lang === lang
-      ))
+      const existing = prev.find(item => item.card.id === card.id)
       if (existing) {
         return prev.map(item => item.key === existing.key
           ? { ...item, quantity: Math.min((Number(item.quantity) || 1) + 1, 999) }
@@ -351,7 +346,8 @@ export default function Trades() {
     ), 0)
     const outgoingCashValue = moneyToEur(outgoingCash, exchangeRate)
     const incomingCashValue = moneyToEur(incomingCash, exchangeRate)
-    const missing = [...outgoing, ...incoming].some(item => moneyToEur(item.value_per_card, exchangeRate) <= 0)
+    const hasMoneyValue = outgoingCashValue > 0 || incomingCashValue > 0
+    const missing = !hasMoneyValue && [...outgoing, ...incoming].some(item => moneyToEur(item.value_per_card, exchangeRate) <= 0)
     const outgoingValue = Math.round((sum(outgoing) + outgoingCashValue) * 100) / 100
     const incomingValue = Math.round((sum(incoming) + incomingCashValue) * 100) / 100
     return { outgoingValue, incomingValue, missing }
@@ -451,7 +447,7 @@ export default function Trades() {
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <section className="space-y-3">
-              <div className="rounded-lg border border-border bg-bg-card p-3 space-y-3 shadow-sm">
+              <div className="rounded-lg border border-border bg-bg-elevated/30 p-3 space-y-3 shadow-sm">
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-text-muted">{t('trades.give')}</h2>
                   <span className="text-sm font-bold text-text-primary">{formatPrice(totals.outgoingValue)}</span>
@@ -504,7 +500,7 @@ export default function Trades() {
             </section>
 
             <section className="space-y-3">
-              <div className="rounded-lg border border-border bg-bg-card p-3 space-y-3 shadow-sm">
+              <div className="rounded-lg border border-border bg-bg-elevated/30 p-3 space-y-3 shadow-sm">
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-text-muted">{t('trades.receive')}</h2>
                   <span className="text-sm font-bold text-text-primary">{formatPrice(totals.incomingValue)}</span>
