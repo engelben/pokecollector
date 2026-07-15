@@ -370,6 +370,16 @@ def delete_custom_card(
     if not card.is_custom:
         raise HTTPException(status_code=400, detail="Card is not custom")
 
+    active_product_links = db.query(ProductCard).filter(
+        ProductCard.card_id == card_id,
+        ProductCard.active_quantity > 0,
+    ).count()
+    if active_product_links:
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot delete a custom card while it is actively linked to a product. Unlink or trade/sell the linked copy first.",
+        )
+
     try:
         db.query(CollectionItem).filter(CollectionItem.card_id == card_id).delete(synchronize_session=False)
         db.query(WishlistItem).filter(WishlistItem.card_id == card_id).delete(synchronize_session=False)

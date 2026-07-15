@@ -175,6 +175,7 @@ class TradeApiTests(unittest.TestCase):
         self.assertEqual(response.value_delta, 6)
         self.assertEqual(len(cash_items), 2)
         self.assertEqual([item.value_total for item in cash_items], [7, 5])
+        self.assertEqual([item.set_id for item in cash_items], ["cash", "cash"])
 
     def test_trades_summary_counts_cards_cash_and_product_locks(self):
         outgoing = self.add_collection_item(quantity=1)
@@ -282,8 +283,52 @@ class TradeApiTests(unittest.TestCase):
 
         self.assertEqual(len(trades), 1)
         self.assertEqual(len(trades[0].items), 1)
+        self.assertIsNone(trades[0].items[0].card_id)
         self.assertEqual(trades[0].items[0].card_name, "Signed Pikachu")
         self.assertEqual(trades[0].items[0].value_total, 25)
+        summary = get_trades_summary(current_user=self.user, db=self.db)
+        self.assertEqual(summary["incoming_card_value"], 25)
+        self.assertEqual(summary["incoming_card_quantity"], 1)
+        self.assertEqual(summary["incoming_cash"], 0)
+
+    def test_deleted_custom_card_named_cash_is_not_counted_as_cash(self):
+        cash_named_card = Card(
+            id="custom-cash-card",
+            name="Cash",
+            set_id="cash",
+            number="promo",
+            lang="en",
+            is_custom=True,
+            price_trend=33,
+            variants_normal=True,
+        )
+        self.db.add(cash_named_card)
+        self.db.commit()
+
+        create_trade(
+            TradeCreate(
+                trade_date=datetime.date(2026, 7, 15),
+                incoming=[
+                    TradeIncomingItemCreate(
+                        card_id=cash_named_card.id,
+                        quantity=1,
+                        condition="NM",
+                        variant="Normal",
+                        lang="en",
+                        value_per_card=33,
+                    )
+                ],
+            ),
+            current_user=self.user,
+            db=self.db,
+        )
+
+        delete_custom_card(cash_named_card.id, current_user=self.user, db=self.db)
+        summary = get_trades_summary(current_user=self.user, db=self.db)
+
+        self.assertEqual(summary["incoming_card_value"], 33)
+        self.assertEqual(summary["incoming_card_quantity"], 1)
+        self.assertEqual(summary["incoming_cash"], 0)
 
     def test_create_trade_rejects_too_much_outgoing_quantity(self):
         outgoing = self.add_collection_item(quantity=1)

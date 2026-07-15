@@ -12,6 +12,18 @@ import datetime
 
 router = APIRouter()
 
+
+def _is_cash_trade_item(item: TradeItem) -> bool:
+    """Cash rows are marker rows, not just any deleted card with card_id NULL."""
+    if item.card_id is not None:
+        return False
+    if (item.card_name or "").lower() != "cash":
+        return False
+    if (item.set_id or "").lower() == "cash" and (item.card_number or "").lower() == "cash":
+        return True
+    return (item.notes or "").lower() in {"cash added to trade", "cash received in trade"}
+
+
 def _get_item_price(item, price_field="price_trend"):
     """Return the selected market price for a collection item, respecting holo variant."""
     return effective_market_price(item.card, item.variant, price_field)
@@ -194,7 +206,7 @@ def get_trades_summary(
     for item in items:
         value = item.value_total or 0
         quantity = int(item.quantity or 0)
-        is_cash = item.card_id is None and (item.card_name or "").lower() == "cash"
+        is_cash = _is_cash_trade_item(item)
 
         if item.direction == "outgoing":
             if is_cash:

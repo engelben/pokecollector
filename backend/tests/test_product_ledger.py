@@ -322,7 +322,7 @@ class ProductLedgerApiTests(unittest.TestCase):
         self.assertEqual(product_card.active_quantity, 0)
         self.assertEqual(product_card.sold_quantity, 1)
 
-    def test_deleting_custom_card_preserves_product_link_snapshot(self):
+    def test_deleting_custom_card_is_blocked_for_active_product_link(self):
         custom_card = Card(
             id="custom-sm-promo",
             tcg_card_id="custom-sm-promo",
@@ -346,12 +346,14 @@ class ProductLedgerApiTests(unittest.TestCase):
             db=self.db,
         )
 
-        delete_custom_card(custom_card.id, current_user=self.user, db=self.db)
+        with self.assertRaises(HTTPException) as ctx:
+            delete_custom_card(custom_card.id, current_user=self.user, db=self.db)
 
         product_card = self.db.query(ProductCard).one()
-        self.assertIsNone(product_card.card_id)
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertEqual(product_card.card_id, custom_card.id)
         self.assertEqual(product_card.active_quantity, 1)
-        self.assertIsNone(self.db.query(Card).filter(Card.id == custom_card.id).first())
+        self.assertIsNotNone(self.db.query(Card).filter(Card.id == custom_card.id).first())
 
 
 if __name__ == "__main__":

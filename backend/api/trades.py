@@ -290,6 +290,8 @@ def create_trade(
                 value_per_card=outgoing_cash,
                 value_total=outgoing_cash,
                 card_name="Cash",
+                set_id="cash",
+                card_number="cash",
                 notes="Cash added to trade",
                 created_at=datetime.datetime.utcnow(),
             ))
@@ -359,6 +361,8 @@ def create_trade(
                 value_per_card=incoming_cash,
                 value_total=incoming_cash,
                 card_name="Cash",
+                set_id="cash",
+                card_number="cash",
                 notes="Cash received in trade",
                 created_at=datetime.datetime.utcnow(),
             ))

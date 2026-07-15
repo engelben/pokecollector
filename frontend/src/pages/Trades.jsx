@@ -55,6 +55,13 @@ function snapshotCard(item) {
   }
 }
 
+function isCashTradeItem(item) {
+  if (item?.card_id) return false
+  if ((item?.card_name || '').toLowerCase() !== 'cash') return false
+  if ((item?.set_id || '').toLowerCase() === 'cash' && (item?.card_number || '').toLowerCase() === 'cash') return true
+  return ['cash added to trade', 'cash received in trade'].includes((item?.notes || '').toLowerCase())
+}
+
 function moneyToEur(value, exchangeRate) {
   const parsed = parseMoneyInputValue(value, exchangeRate, null)
   return parsed == null ? 0 : parsed
@@ -607,15 +614,15 @@ export default function Trades() {
                       {direction === 'outgoing' ? t('trades.give') : t('trades.receive')}
                     </p>
                     {(trade.items || []).filter(item => item.direction === direction).map(item => (
-                      item.card_id ? (
+                      isCashTradeItem(item) ? (
+                        <CashHistoryRow key={item.id} item={item} t={t} formatPrice={formatPrice} />
+                      ) : (
                         <MiniCardRow
                           key={item.id}
                           card={snapshotCard(item)}
                           meta={`${item.quantity} - ${item.variant || 'Normal'} - ${item.condition || 'NM'}`}
                           value={formatPrice(item.value_total)}
                         />
-                      ) : (
-                        <CashHistoryRow key={item.id} item={item} t={t} formatPrice={formatPrice} />
                       )
                     ))}
                   </div>
