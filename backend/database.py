@@ -319,7 +319,7 @@ def _run_migrations(conn):
             trade_id INTEGER NOT NULL REFERENCES trades(id) ON DELETE CASCADE,
             user_id INTEGER NOT NULL REFERENCES users(id),
             direction VARCHAR NOT NULL,
-            card_id VARCHAR NOT NULL REFERENCES cards(id),
+            card_id VARCHAR REFERENCES cards(id) ON DELETE SET NULL,
             original_collection_item_id INTEGER,
             created_collection_item_id INTEGER,
             product_card_id INTEGER,

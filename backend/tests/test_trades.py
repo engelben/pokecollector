@@ -144,6 +144,55 @@ class TradeApiTests(unittest.TestCase):
         self.assertEqual(item.purchase_price, 25)
         self.assertEqual(response.incoming_value, 25)
 
+    def test_create_trade_can_include_cash_on_both_sides(self):
+        outgoing = self.add_collection_item(quantity=1)
+
+        response = create_trade(
+            TradeCreate(
+                trade_date=datetime.date(2026, 7, 15),
+                outgoing_cash=5,
+                incoming_cash=7,
+                outgoing=[TradeOutgoingItemCreate(collection_item_id=outgoing.id, quantity=1, value_per_card=10)],
+                incoming=[
+                    TradeIncomingItemCreate(
+                        card_id=self.incoming_card.id,
+                        quantity=1,
+                        condition="NM",
+                        variant="Normal",
+                        lang="en",
+                        value_per_card=14,
+                    )
+                ],
+            ),
+            current_user=self.user,
+            db=self.db,
+        )
+
+        cash_items = self.db.query(TradeItem).filter(TradeItem.card_id.is_(None)).order_by(TradeItem.direction).all()
+        self.assertEqual(response.outgoing_value, 15)
+        self.assertEqual(response.incoming_value, 21)
+        self.assertEqual(response.value_delta, 6)
+        self.assertEqual(len(cash_items), 2)
+        self.assertEqual([item.value_total for item in cash_items], [7, 5])
+
+    def test_create_trade_can_be_cash_only(self):
+        response = create_trade(
+            TradeCreate(
+                trade_date=datetime.date(2026, 7, 15),
+                outgoing_cash=10,
+                incoming_cash=12,
+            ),
+            current_user=self.user,
+            db=self.db,
+        )
+
+        cash_items = self.db.query(TradeItem).filter(TradeItem.card_id.is_(None)).all()
+        self.assertEqual(response.outgoing_value, 10)
+        self.assertEqual(response.incoming_value, 12)
+        self.assertEqual(response.value_delta, 2)
+        self.assertEqual(len(cash_items), 2)
+        self.assertEqual(self.db.query(CollectionItem).count(), 0)
+
     def test_custom_card_delete_preserves_trade_snapshot_history(self):
         create_trade(
             TradeCreate(

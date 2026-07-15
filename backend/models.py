@@ -159,7 +159,7 @@ class WishlistItem(Base):
     __tablename__ = "wishlist"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    card_id = Column(String, ForeignKey("cards.id"), nullable=False)
+    card_id = Column(String, ForeignKey("cards.id", ondelete="SET NULL"), nullable=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     quantity = Column(Integer, default=1, nullable=False)
     price_alert_above = Column(Float)

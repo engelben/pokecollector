@@ -56,6 +56,11 @@ def _snapshot_price(card: Card | None, variant: str | None, override, price_fiel
     return round(float(effective_market_price(card, variant, price_field) or 0), 2)
 
 
+def _cash_amount(value) -> float:
+    _validate_money(value, "cash")
+    return round(float(value or 0), 2)
+
+
 def _trade_response(trade: Trade) -> TradeResponse:
     items = sorted(trade.items or [], key=lambda item: item.id or 0)
     trade.items = items
@@ -252,8 +257,10 @@ def create_trade(
     price_field: str = Query(default="price_trend"),
 ):
     price_field = normalize_price_field(price_field)
-    if not trade.outgoing and not trade.incoming:
-        raise HTTPException(status_code=422, detail="Trade must include at least one card")
+    outgoing_cash = _cash_amount(trade.outgoing_cash)
+    incoming_cash = _cash_amount(trade.incoming_cash)
+    if not trade.outgoing and not trade.incoming and outgoing_cash <= 0 and incoming_cash <= 0:
+        raise HTTPException(status_code=422, detail="Trade must include at least one item")
 
     db_trade = Trade(
         user_id=current_user.id,
@@ -272,6 +279,21 @@ def create_trade(
     incoming_total = 0.0
 
     try:
+        if outgoing_cash > 0:
+            outgoing_total += outgoing_cash
+            db.add(TradeItem(
+                trade_id=db_trade.id,
+                user_id=current_user.id,
+                direction="outgoing",
+                card_id=None,
+                quantity=1,
+                value_per_card=outgoing_cash,
+                value_total=outgoing_cash,
+                card_name="Cash",
+                notes="Cash added to trade",
+                created_at=datetime.datetime.utcnow(),
+            ))
+
         for outgoing in trade.outgoing:
             if not positive_quantity(outgoing.quantity, TRADE_QUANTITY_MAX):
                 raise HTTPException(status_code=422, detail="quantity must be between 1 and 999")
@@ -325,6 +347,21 @@ def create_trade(
             else:
                 _delete_collection_item_references(db, collection_item.id)
                 db.delete(collection_item)
+
+        if incoming_cash > 0:
+            incoming_total += incoming_cash
+            db.add(TradeItem(
+                trade_id=db_trade.id,
+                user_id=current_user.id,
+                direction="incoming",
+                card_id=None,
+                quantity=1,
+                value_per_card=incoming_cash,
+                value_total=incoming_cash,
+                card_name="Cash",
+                notes="Cash received in trade",
+                created_at=datetime.datetime.utcnow(),
+            ))
 
         for incoming in trade.incoming:
             if not positive_quantity(incoming.quantity, TRADE_QUANTITY_MAX):

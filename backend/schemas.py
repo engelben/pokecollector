@@ -405,6 +405,8 @@ class TradeCreate(BaseModel):
     partner_name: Optional[str] = None
     trade_date: date
     notes: Optional[str] = None
+    outgoing_cash: Optional[float] = Field(default=0, ge=0)
+    incoming_cash: Optional[float] = Field(default=0, ge=0)
     outgoing: List[TradeOutgoingItemCreate] = Field(default_factory=list)
     incoming: List[TradeIncomingItemCreate] = Field(default_factory=list)
 
@@ -413,7 +415,7 @@ class TradeItemResponse(BaseModel):
     id: int
     trade_id: int
     direction: str
-    card_id: str
+    card_id: Optional[str] = None
     original_collection_item_id: Optional[int] = None
     created_collection_item_id: Optional[int] = None
     product_card_id: Optional[int] = None

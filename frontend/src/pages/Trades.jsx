@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowRightLeft, Check, History, PenLine, Plus, Search, Trash2 } from 'lucide-react'
+import { ArrowRightLeft, Check, History, PenLine, Plus, Search, Trash2, Wallet } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 import {
@@ -58,55 +58,63 @@ function TradeHealthBar({ outgoingValue, incomingValue, missingPrices, t, format
   const delta = incomingValue - outgoingValue
   const deltaPct = outgoingValue > 0 ? (delta / outgoingValue) * 100 : (incomingValue > 0 ? 100 : 0)
   let label = t('trades.emptyTrade')
-  let width = 12
-  let color = 'bg-text-muted'
+  let hp = 12
+  let barColor = '#777'
 
   if (missingPrices) {
     label = t('trades.missingPrices')
-    width = 45
-    color = 'bg-yellow'
+    hp = 45
+    barColor = '#f5c842'
   } else if (outgoingValue > 0 || incomingValue > 0) {
     if (deltaPct >= 15) {
       label = t('trades.youGain')
-      width = 96
-      color = 'bg-green'
+      hp = 96
+      barColor = '#66bb6a'
     } else if (deltaPct >= -5) {
       label = t('trades.fairTrade')
-      width = 72
-      color = 'bg-green'
+      hp = 72
+      barColor = '#66bb6a'
     } else if (deltaPct >= -15) {
       label = t('trades.closeTrade')
-      width = 44
-      color = 'bg-yellow'
+      hp = 44
+      barColor = '#f5c842'
     } else {
       label = t('trades.youLose')
-      width = 18
-      color = 'bg-brand-red'
+      hp = 18
+      barColor = '#e3000b'
     }
   }
+  const barWidth = Math.max(6, Math.min(100, hp))
 
   return (
-    <div className="rounded-lg border border-border bg-bg-card p-4 space-y-3">
+    <div className="rounded-lg border-2 border-black bg-[#f7edc5] p-3 text-black shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)] space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <ArrowRightLeft size={18} className="text-brand-red flex-shrink-0" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-black bg-white">
+            <ArrowRightLeft size={17} className="text-brand-red flex-shrink-0" />
+          </div>
           <div className="min-w-0">
-            <p className="text-sm font-bold text-text-primary truncate">{label}</p>
-            <p className={clsx('text-xs font-semibold', delta >= 0 ? 'text-green' : 'text-brand-red')}>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-black/60">{t('trades.tradeHp')}</p>
+            <p className="text-sm font-black text-black truncate">{label}</p>
+            <p className={clsx('text-xs font-black', delta >= 0 ? 'text-green' : 'text-brand-red')}>
               {delta >= 0 ? '+' : ''}{formatPrice(delta)}
             </p>
           </div>
         </div>
-        <div className="text-right text-xs text-text-muted flex-shrink-0">
+        <div className="text-right text-xs font-bold text-black/70 flex-shrink-0">
           <div>{t('trades.give')}: {formatPrice(outgoingValue)}</div>
           <div>{t('trades.receive')}: {formatPrice(incomingValue)}</div>
         </div>
       </div>
-      <div className="h-4 rounded-full border border-black/60 bg-bg-elevated overflow-hidden">
-        <div
-          className={clsx('h-full transition-all duration-300', color)}
-          style={{ width: `${Math.max(6, Math.min(100, width))}%` }}
-        />
+      <div className="flex items-center gap-2 rounded-full border-2 border-black bg-[#fff8d6] px-2 py-1">
+        <span className="text-[10px] font-black leading-none text-[#e35a00]">HP</span>
+        <div className="h-4 flex-1 rounded-full border border-black bg-[#1f1f1f] p-[3px]">
+          <div
+            className="h-full rounded-full transition-all duration-300"
+            style={{ width: `${barWidth}%`, backgroundColor: barColor }}
+          />
+        </div>
+        <span className="w-14 text-right text-[10px] font-black tabular-nums text-black">{hp}/100</span>
       </div>
     </div>
   )
@@ -181,6 +189,45 @@ function DraftItem({ item, side, onUpdate, onRemove, t, formatPrice, exchangeRat
   )
 }
 
+function CashInput({ value, onChange, t }) {
+  return (
+    <div className="rounded-lg border border-dashed border-border bg-bg-elevated/40 p-3">
+      <label className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-text-muted">
+        <Wallet size={14} />
+        {t('trades.cashAmount')}
+      </label>
+      <MoneyInput value={value} onChange={(event) => onChange(event.target.value)} placeholder={t('trades.cashPlaceholder')} />
+    </div>
+  )
+}
+
+function CashHistoryRow({ item, t, formatPrice }) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border bg-bg-card p-2 min-w-0">
+      <div className="flex h-14 w-10 flex-shrink-0 items-center justify-center rounded bg-bg-elevated text-text-secondary">
+        <Wallet size={18} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-text-primary">{t('trades.cashAmount')}</p>
+        <p className="truncate text-xs text-text-muted">{t('trades.cashLine')}</p>
+      </div>
+      <div className="text-right text-sm font-bold text-text-primary flex-shrink-0">{formatPrice(item.value_total)}</div>
+    </div>
+  )
+}
+
+function SelectedPanel({ title, total, children, formatPrice }) {
+  return (
+    <div className="rounded-lg border-2 border-border bg-bg-card/70 p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2 border-b border-border pb-2">
+        <h3 className="text-xs font-black uppercase tracking-[0.14em] text-text-secondary">{title}</h3>
+        <span className="text-sm font-bold text-text-primary">{formatPrice(total)}</span>
+      </div>
+      {children}
+    </div>
+  )
+}
+
 export default function Trades() {
   const { t, formatPrice, pricePrimaryField, exchangeRate } = useSettings()
   const queryClient = useQueryClient()
@@ -193,6 +240,8 @@ export default function Trades() {
   const [incomingSearch, setIncomingSearch] = useState('')
   const [outgoing, setOutgoing] = useState([])
   const [incoming, setIncoming] = useState([])
+  const [outgoingCash, setOutgoingCash] = useState('')
+  const [incomingCash, setIncomingCash] = useState('')
   const [showCustomModal, setShowCustomModal] = useState(false)
 
   const { data: collectionItems = [] } = useQuery({
@@ -237,31 +286,53 @@ export default function Trades() {
   }, [customCards, incomingSearch, searchResults])
 
   const addOutgoing = (collectionItem) => {
-    const key = `out-${collectionItem.id}-${Date.now()}`
     const price = getEffectiveCardPrice(collectionItem.card, collectionItem.variant, priceField)
-    setOutgoing(prev => [...prev, {
-      key,
-      collectionItem,
-      quantity: 1,
-      value_per_card: formatMoneyInputValue(price, exchangeRate),
-      variant: collectionItem.variant,
-      condition: collectionItem.condition,
-      lang: collectionItem.lang,
-    }])
+    setOutgoing(prev => {
+      const existing = prev.find(item => item.collectionItem.id === collectionItem.id)
+      if (existing) {
+        return prev.map(item => item.collectionItem.id === collectionItem.id
+          ? { ...item, quantity: Math.min((Number(item.quantity) || 1) + 1, collectionItem.quantity) }
+          : item)
+      }
+      return [...prev, {
+        key: `out-${collectionItem.id}`,
+        collectionItem,
+        quantity: 1,
+        value_per_card: formatMoneyInputValue(price, exchangeRate),
+        variant: collectionItem.variant,
+        condition: collectionItem.condition,
+        lang: collectionItem.lang,
+      }]
+    })
   }
 
   const addIncomingCard = (card) => {
     const variant = getDefaultVariantOrNull(card) || 'Normal'
+    const condition = 'NM'
+    const lang = card.lang || card._lang || 'en'
     const price = getEffectiveCardPrice(card, variant, priceField)
-    setIncoming(prev => [...prev, {
-      key: `in-${card.id}-${Date.now()}`,
-      card,
-      quantity: 1,
-      condition: 'NM',
-      variant,
-      lang: card.lang || card._lang || 'en',
-      value_per_card: formatMoneyInputValue(price, exchangeRate),
-    }])
+    setIncoming(prev => {
+      const existing = prev.find(item => (
+        item.card.id === card.id
+        && item.variant === variant
+        && item.condition === condition
+        && item.lang === lang
+      ))
+      if (existing) {
+        return prev.map(item => item.key === existing.key
+          ? { ...item, quantity: Math.min((Number(item.quantity) || 1) + 1, 999) }
+          : item)
+      }
+      return [...prev, {
+        key: `in-${card.id}-${variant}-${condition}-${lang}`,
+        card,
+        quantity: 1,
+        condition,
+        variant,
+        lang,
+        value_per_card: formatMoneyInputValue(price, exchangeRate),
+      }]
+    })
   }
 
   const updateDraft = (side, key, patch) => {
@@ -278,11 +349,13 @@ export default function Trades() {
     const sum = (items) => items.reduce((total, item) => (
       total + moneyToEur(item.value_per_card, exchangeRate) * (Number(item.quantity) || 1)
     ), 0)
+    const outgoingCashValue = moneyToEur(outgoingCash, exchangeRate)
+    const incomingCashValue = moneyToEur(incomingCash, exchangeRate)
     const missing = [...outgoing, ...incoming].some(item => moneyToEur(item.value_per_card, exchangeRate) <= 0)
-    const outgoingValue = Math.round(sum(outgoing) * 100) / 100
-    const incomingValue = Math.round(sum(incoming) * 100) / 100
+    const outgoingValue = Math.round((sum(outgoing) + outgoingCashValue) * 100) / 100
+    const incomingValue = Math.round((sum(incoming) + incomingCashValue) * 100) / 100
     return { outgoingValue, incomingValue, missing }
-  }, [exchangeRate, incoming, outgoing])
+  }, [exchangeRate, incoming, incomingCash, outgoing, outgoingCash])
 
   const resetDraft = () => {
     setPartnerName('')
@@ -290,6 +363,8 @@ export default function Trades() {
     setNotes('')
     setOutgoing([])
     setIncoming([])
+    setOutgoingCash('')
+    setIncomingCash('')
   }
 
   const createMutation = useMutation({
@@ -297,6 +372,8 @@ export default function Trades() {
       partner_name: partnerName || null,
       trade_date: tradeDate,
       notes: notes || null,
+      outgoing_cash: parseMoneyInputValue(outgoingCash, exchangeRate, 0) || 0,
+      incoming_cash: parseMoneyInputValue(incomingCash, exchangeRate, 0) || 0,
       outgoing: outgoing.map(item => ({
         collection_item_id: item.collectionItem.id,
         quantity: Number(item.quantity) || 1,
@@ -328,7 +405,12 @@ export default function Trades() {
     onError: (error) => toast.error(getApiErrorMessage(error, t('trades.saveFailed'))),
   })
 
-  const canSave = (outgoing.length > 0 || incoming.length > 0) && tradeDate && !createMutation.isPending
+  const canSave = (
+    outgoing.length > 0
+    || incoming.length > 0
+    || moneyToEur(outgoingCash, exchangeRate) > 0
+    || moneyToEur(incomingCash, exchangeRate) > 0
+  ) && tradeDate && !createMutation.isPending
 
   return (
     <div className="space-y-4 pb-2">
@@ -369,7 +451,7 @@ export default function Trades() {
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <section className="space-y-3">
-              <div className="rounded-lg border border-border bg-bg-card p-3 space-y-3">
+              <div className="rounded-lg border border-border bg-bg-card p-3 space-y-3 shadow-sm">
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-text-muted">{t('trades.give')}</h2>
                   <span className="text-sm font-bold text-text-primary">{formatPrice(totals.outgoingValue)}</span>
@@ -401,7 +483,8 @@ export default function Trades() {
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <SelectedPanel title={t('trades.selectedGive')} total={totals.outgoingValue} formatPrice={formatPrice}>
+                <CashInput value={outgoingCash} onChange={setOutgoingCash} t={t} />
                 {outgoing.map(item => (
                   <DraftItem
                     key={item.key}
@@ -414,11 +497,14 @@ export default function Trades() {
                     exchangeRate={exchangeRate}
                   />
                 ))}
-              </div>
+                {outgoing.length === 0 && moneyToEur(outgoingCash, exchangeRate) <= 0 && (
+                  <p className="rounded-lg border border-dashed border-border py-5 text-center text-sm text-text-muted">{t('trades.noSelectedCards')}</p>
+                )}
+              </SelectedPanel>
             </section>
 
             <section className="space-y-3">
-              <div className="rounded-lg border border-border bg-bg-card p-3 space-y-3">
+              <div className="rounded-lg border border-border bg-bg-card p-3 space-y-3 shadow-sm">
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-text-muted">{t('trades.receive')}</h2>
                   <span className="text-sm font-bold text-text-primary">{formatPrice(totals.incomingValue)}</span>
@@ -458,7 +544,8 @@ export default function Trades() {
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <SelectedPanel title={t('trades.selectedReceive')} total={totals.incomingValue} formatPrice={formatPrice}>
+                <CashInput value={incomingCash} onChange={setIncomingCash} t={t} />
                 {incoming.map(item => (
                   <DraftItem
                     key={item.key}
@@ -471,7 +558,10 @@ export default function Trades() {
                     exchangeRate={exchangeRate}
                   />
                 ))}
-              </div>
+                {incoming.length === 0 && moneyToEur(incomingCash, exchangeRate) <= 0 && (
+                  <p className="rounded-lg border border-dashed border-border py-5 text-center text-sm text-text-muted">{t('trades.noSelectedCards')}</p>
+                )}
+              </SelectedPanel>
             </section>
           </div>
 
@@ -510,12 +600,16 @@ export default function Trades() {
                       {direction === 'outgoing' ? t('trades.give') : t('trades.receive')}
                     </p>
                     {(trade.items || []).filter(item => item.direction === direction).map(item => (
-                      <MiniCardRow
-                        key={item.id}
-                        card={snapshotCard(item)}
-                        meta={`${item.quantity} - ${item.variant || 'Normal'} - ${item.condition || 'NM'}`}
-                        value={formatPrice(item.value_total)}
-                      />
+                      item.card_id ? (
+                        <MiniCardRow
+                          key={item.id}
+                          card={snapshotCard(item)}
+                          meta={`${item.quantity} - ${item.variant || 'Normal'} - ${item.condition || 'NM'}`}
+                          value={formatPrice(item.value_total)}
+                        />
+                      ) : (
+                        <CashHistoryRow key={item.id} item={item} t={t} formatPrice={formatPrice} />
+                      )
                     ))}
                   </div>
                 ))}
