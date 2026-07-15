@@ -124,7 +124,7 @@ class CardWithSet(CardBase):
 
 
 class CollectionItemCreate(BaseModel):
-    card_id: Optional[str] = None
+    card_id: str
     quantity: int = 1
     condition: str = "NM"
     variant: Optional[str] = "Normal"
@@ -337,7 +337,7 @@ class ProductLedgerEntryResponse(BaseModel):
 class ProductCardResponse(BaseModel):
     id: int
     product_id: int
-    card_id: str
+    card_id: Optional[str] = None
     collection_item_id: Optional[int] = None
     initial_quantity: int
     active_quantity: int

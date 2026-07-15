@@ -247,7 +247,7 @@ class ProductCard(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     product_id = Column(Integer, ForeignKey("product_purchases.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    card_id = Column(String, ForeignKey("cards.id"), nullable=False)
+    card_id = Column(String, ForeignKey("cards.id", ondelete="SET NULL"), nullable=True)
     # Historical source row only. Intentionally not a FK so sold-card history
     # survives when the active collection row is reduced/deleted after sale.
     collection_item_id = Column(Integer, nullable=True)
@@ -284,7 +284,7 @@ class ProductLedgerEntry(Base):
     product_id = Column(Integer, ForeignKey("product_purchases.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     entry_type = Column(String, nullable=False, default="card_sale")  # card_sale / flat_gain / adjustment
-    card_id = Column(String, ForeignKey("cards.id"), nullable=True)
+    card_id = Column(String, ForeignKey("cards.id", ondelete="SET NULL"), nullable=True)
     original_collection_item_id = Column(Integer, nullable=True)
     quantity = Column(Integer, default=1, nullable=False)
     amount = Column(Float, nullable=False)  # Flat total for this ledger event

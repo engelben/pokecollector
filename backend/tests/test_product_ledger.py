@@ -14,6 +14,7 @@ try:
         link_collection_item_to_product,
         sell_product_card,
     )
+    from api.cards import delete_custom_card
     from api.collection import get_collection, update_collection_item
     from database import Base
     from models import Binder, BinderCard, Card, CollectionItem, ProductCard, ProductLedgerEntry, ProductPurchase, User
@@ -99,9 +100,10 @@ class ProductLedgerApiTests(unittest.TestCase):
         self.db.refresh(product)
         return product
 
-    def add_collection_item(self, quantity=1, user=None):
+    def add_collection_item(self, quantity=1, user=None, card=None):
+        card = card or self.card
         item = CollectionItem(
-            card_id=self.card.id,
+            card_id=card.id,
             user_id=(user or self.user).id,
             quantity=quantity,
             condition="NM",
@@ -319,6 +321,37 @@ class ProductLedgerApiTests(unittest.TestCase):
         product_card = self.db.query(ProductCard).one()
         self.assertEqual(product_card.active_quantity, 0)
         self.assertEqual(product_card.sold_quantity, 1)
+
+    def test_deleting_custom_card_preserves_product_link_snapshot(self):
+        custom_card = Card(
+            id="custom-sm-promo",
+            tcg_card_id="custom-sm-promo",
+            name="Signed Promo",
+            set_id="custom",
+            number="42",
+            lang="en",
+            is_custom=True,
+            price_trend=20,
+            price_market=20,
+            variants_normal=True,
+        )
+        self.db.add(custom_card)
+        self.db.commit()
+        product = self.add_product()
+        item = self.add_collection_item(quantity=1, card=custom_card)
+        link_collection_item_to_product(
+            product.id,
+            ProductCardLinkCreate(collection_item_id=item.id, quantity=1),
+            current_user=self.user,
+            db=self.db,
+        )
+
+        delete_custom_card(custom_card.id, current_user=self.user, db=self.db)
+
+        product_card = self.db.query(ProductCard).one()
+        self.assertIsNone(product_card.card_id)
+        self.assertEqual(product_card.active_quantity, 1)
+        self.assertIsNone(self.db.query(Card).filter(Card.id == custom_card.id).first())
 
 
 if __name__ == "__main__":
