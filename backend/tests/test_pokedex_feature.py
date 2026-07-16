@@ -10,10 +10,12 @@ from sqlalchemy.orm import sessionmaker
 from database import Base
 from models import Card, CollectionItem, Setting, User
 
-from services.pokemon_api import extract_cardmarket_products, extract_dex_ids, parse_card_for_db
+from services.pokemon_api import extract_cardmarket_products, extract_dex_ids, infer_dex_ids_from_name, parse_card_for_db
 from services.pokedex import aggregate_pokedex, load_pokedex, normalize_dex_ids
 from services.pokedex_backfill import (
     COMPLETED_SETTING_KEY,
+    CURRENT_BACKFILL_REVISION,
+    REVISION_SETTING_KEY,
     STATUS_SETTING_KEY,
     missing_pokedex_metadata_count,
     pokedex_metadata_backfill_completed,
@@ -67,6 +69,29 @@ class PokedexMetadataTests(unittest.TestCase):
         self.assertEqual(parsed["cardmarket_products"][0]["product_id"], 733689)
         # Rich variant arrays also populate the legacy availability booleans.
         self.assertTrue(parsed["variants_holo"])
+
+    def test_missing_dex_id_falls_back_to_mega_species_name(self):
+        self.assertEqual(infer_dex_ids_from_name({
+            "name": "Mega-Glurak Y-ex",
+            "category": "Pokémon",
+        }), [6])
+        self.assertEqual(infer_dex_ids_from_name({
+            "name": "Mega Charizard Y ex",
+            "category": "Pokemon",
+        }), [6])
+        self.assertEqual(parse_card_for_db({
+            "id": "me02.5-022",
+            "localId": "022",
+            "name": "Mega-Glurak Y-ex",
+            "category": "Pokémon",
+            "dexId": None,
+        }, lang="de")["dex_ids"], [6])
+
+    def test_name_fallback_does_not_apply_to_trainers(self):
+        self.assertIsNone(infer_dex_ids_from_name({
+            "name": "Mega-Signal",
+            "category": "Trainer",
+        }))
 
     def test_full_card_without_mapping_marks_metadata_as_checked(self):
         parsed = parse_card_for_db({
@@ -176,6 +201,7 @@ class PokedexBackfillTests(unittest.TestCase):
     def test_completed_marker_skips_startup_backfill(self):
         self.db.add_all([
             Setting(key=COMPLETED_SETTING_KEY, value="true"),
+            Setting(key=REVISION_SETTING_KEY, value=CURRENT_BACKFILL_REVISION),
             Card(id="base-25_en", tcg_card_id="base-25", name="Pikachu", lang="en", is_custom=False, supertype="Pokemon"),
         ])
         self.db.commit()
@@ -215,6 +241,37 @@ class PokedexBackfillTests(unittest.TestCase):
         self.assertEqual(self.db.query(Setting).filter(Setting.key == STATUS_SETTING_KEY).count(), 1)
         self.assertEqual(missing_pokedex_metadata_count(self.db), 0)
 
+    def test_old_completed_marker_without_current_revision_runs_again(self):
+        self.db.add_all([
+            Setting(key=COMPLETED_SETTING_KEY, value="true"),
+            Card(
+                id="me02.5-022_de",
+                tcg_card_id="me02.5-022",
+                name="Mega-Glurak Y-ex",
+                lang="de",
+                is_custom=False,
+                supertype="Pokémon",
+                dex_ids=[],
+                cardmarket_products=[],
+            ),
+        ])
+        self.db.commit()
+
+        def enrich(db, cards, **_kwargs):
+            for card in cards:
+                card.dex_ids = [6]
+                db.add(card)
+            db.commit()
+            return {"attempted": len(cards), "updated": len(cards), "missing": 0, "failed": 0, "ids": [card.id for card in cards]}
+
+        with patch("services.pokedex_backfill.enrich_cards_metadata", side_effect=enrich):
+            result = run_pokedex_metadata_backfill(self.db, batch_limit=10)
+
+        self.assertTrue(result["completed"])
+        self.assertTrue(pokedex_metadata_backfill_completed(self.db))
+        revision = self.db.query(Setting).filter(Setting.key == REVISION_SETTING_KEY).one()
+        self.assertEqual(revision.value, CURRENT_BACKFILL_REVISION)
+
     def test_missing_rows_are_attempted_once_without_looping_forever(self):
         self.db.add(Card(
             id="missing-25_en",
@@ -243,6 +300,20 @@ class PokedexBackfillTests(unittest.TestCase):
         self.assertEqual(attempts, ["missing-25_en"])
         self.assertEqual(missing_pokedex_metadata_count(self.db), 1)
         self.assertTrue(pokedex_metadata_backfill_completed(self.db))
+
+    def test_empty_pokemon_dex_ids_are_retried_by_backfill(self):
+        self.db.add(Card(
+            id="me02.5-022_de",
+            tcg_card_id="me02.5-022",
+            name="Mega-Glurak Y-ex",
+            lang="de",
+            is_custom=False,
+            supertype="Pokémon",
+            dex_ids=[],
+            cardmarket_products=[],
+        ))
+        self.db.commit()
+        self.assertEqual(missing_pokedex_metadata_count(self.db), 1)
 
 
 class PokedexImageCacheTests(unittest.TestCase):

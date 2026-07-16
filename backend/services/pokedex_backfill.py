@@ -19,7 +19,9 @@ from services.card_metadata import (
 logger = logging.getLogger(__name__)
 
 COMPLETED_SETTING_KEY = "pokedex_metadata_backfill_completed"
+REVISION_SETTING_KEY = "pokedex_metadata_backfill_revision"
 STATUS_SETTING_KEY = "pokedex_metadata_backfill_status"
+CURRENT_BACKFILL_REVISION = "name-fallback-v1"
 DEFAULT_BATCH_LIMIT = 5000
 DEFAULT_BATCH_DELAY_SECONDS = 0.5
 
@@ -41,12 +43,16 @@ def _set_setting(db: Session, key: str, value: str) -> None:
     db.commit()
 
 
+def _json_array_empty(column):
+    return column == []
+
+
 def pokedex_backfill_query(db: Session):
     return (
         db.query(Card)
         .filter(Card.is_custom.is_(False), Card.tcg_card_id.isnot(None))
         .filter(
-            or_(_json_value_missing(Card.dex_ids), _json_value_missing(Card.cardmarket_products)),
+            or_(_json_value_missing(Card.dex_ids), _json_array_empty(Card.dex_ids), _json_value_missing(Card.cardmarket_products)),
             or_(Card.supertype.is_(None), func.lower(Card.supertype).in_(POKEMON_SUPERTYPE_VALUES)),
         )
         .order_by(Card.updated_at.asc(), Card.id.asc())
@@ -54,8 +60,9 @@ def pokedex_backfill_query(db: Session):
 
 
 def pokedex_metadata_backfill_completed(db: Session) -> bool:
-    row = _setting(db, COMPLETED_SETTING_KEY)
-    return bool(row and row.value == "true")
+    completed = _setting(db, COMPLETED_SETTING_KEY)
+    revision = _setting(db, REVISION_SETTING_KEY)
+    return bool(completed and completed.value == "true" and revision and revision.value == CURRENT_BACKFILL_REVISION)
 
 
 def missing_pokedex_metadata_count(db: Session) -> int:
@@ -76,6 +83,7 @@ def mark_pokedex_metadata_backfill_complete(db: Session, *, result: dict | None 
     if result:
         payload["result"] = result
     _set_setting(db, COMPLETED_SETTING_KEY, "true")
+    _set_setting(db, REVISION_SETTING_KEY, CURRENT_BACKFILL_REVISION)
     _set_setting(db, STATUS_SETTING_KEY, json.dumps(payload))
 
 

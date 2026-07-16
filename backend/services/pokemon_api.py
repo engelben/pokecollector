@@ -1,6 +1,10 @@
 import httpx
+import re
+from functools import lru_cache
 from typing import Optional, Dict, Any, List
 from services.card_gameplay import playable_fingerprint
+from services.pokedex import load_pokedex
+from services.text_search import strip_diacritics
 from services.tcgdex_languages import (
     DEFAULT_TCGDEX_SYNC_LANGUAGES,
     is_supported_tcgdex_language,
@@ -11,6 +15,9 @@ from services.tcgdex_languages import (
 from services.digital_sets import is_digital_set_data
 
 TCGDEX_BASE = "https://api.tcgdex.net/v2"
+_POKEMON_CATEGORY_VALUES = {"pokemon", "pokémon"}
+_NAME_SUFFIX_TOKENS = {"ex", "gx", "v", "vmax", "vstar"}
+_MEGA_FORM_TOKENS = {"x", "y"}
 
 
 def _safe_int(val) -> int:
@@ -347,6 +354,67 @@ def extract_dex_ids(card_data: Dict) -> list[int] | None:
     return result or None
 
 
+def _normalized_species_name(value: str | None) -> str:
+    normalized = strip_diacritics(value)
+    normalized = normalized.replace("♀", " f ").replace("♂", " m ")
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
+    return " ".join(normalized.split())
+
+
+@lru_cache(maxsize=1)
+def _pokedex_name_index() -> dict[str, int]:
+    result: dict[str, int] = {}
+    for entry in load_pokedex():
+        dex_id = int(entry["dex_id"])
+        for key in ("name_en", "name_de"):
+            name = _normalized_species_name(entry.get(key))
+            if name:
+                result.setdefault(name, dex_id)
+    return result
+
+
+def _species_name_candidates(card_name: str | None) -> list[str]:
+    normalized = _normalized_species_name(card_name)
+    if not normalized:
+        return []
+
+    candidates = [normalized]
+    tokens = normalized.split()
+    had_mega_prefix = bool(tokens and tokens[0] in {"mega", "m"})
+    if had_mega_prefix:
+        tokens = tokens[1:]
+        if tokens:
+            candidates.append(" ".join(tokens))
+    if tokens and tokens[-1] in _NAME_SUFFIX_TOKENS:
+        tokens = tokens[:-1]
+        if tokens:
+            candidates.append(" ".join(tokens))
+    if had_mega_prefix and tokens and tokens[-1] in _MEGA_FORM_TOKENS:
+        tokens = tokens[:-1]
+        if tokens:
+            candidates.append(" ".join(tokens))
+
+    result = []
+    for candidate in candidates:
+        if candidate and candidate not in result:
+            result.append(candidate)
+    return result
+
+
+def infer_dex_ids_from_name(card_data: Dict) -> list[int] | None:
+    """Infer base species when full TCGdex Pokémon details omit ``dexId``."""
+    category = str(card_data.get("category") or "").strip().casefold()
+    if category not in _POKEMON_CATEGORY_VALUES:
+        return None
+
+    name_index = _pokedex_name_index()
+    for candidate in _species_name_candidates(card_data.get("name")):
+        dex_id = name_index.get(candidate)
+        if dex_id:
+            return [dex_id]
+    return None
+
+
 def _product_id(value) -> int | None:
     if isinstance(value, bool) or value is None:
         return None
@@ -461,6 +529,8 @@ def parse_card_for_db(card_data: Dict, default_set_id: Optional[str] = None, lan
     variants = raw_variants if isinstance(raw_variants, dict) else {}
     is_full_detail = "category" in card_data
     dex_ids = extract_dex_ids(card_data)
+    if dex_ids is None and is_full_detail:
+        dex_ids = infer_dex_ids_from_name(card_data)
     cardmarket_products = extract_cardmarket_products(card_data)
     # NULL means a brief set-list row still needs enrichment. An empty list
     # means a full TCGdex card response was checked and no mapping exists.
