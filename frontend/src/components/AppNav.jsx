@@ -5,6 +5,7 @@ import { useSettings } from '../contexts/SettingsContext'
 
 const PAGE_TITLE_KEYS = {
   '/collection': 'nav.collection',
+  '/pokedex':    'nav.pokedex',
   '/search':     'nav.cardSearch',
   '/sets':       'nav.sets',
   '/analytics':  'nav.analytics',

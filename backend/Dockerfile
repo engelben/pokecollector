@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY VERSION /app/VERSION
 COPY backend/ .
 
-RUN mkdir -p /app/backups /app/debug
+RUN mkdir -p /app/backups /app/debug /app/data/pokedex-images/sprites /app/data/pokedex-images/artwork
 
 EXPOSE 8000
 

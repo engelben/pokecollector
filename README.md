@@ -64,6 +64,7 @@ Be kind. Be clear. Assume good intent. Keep feedback constructive.
 
 ### 🗂️ Sets, Binders & Wishlist
 - Set overview with completion progress and per-set checklist
+- National Pokédex #001–1025 with generation filters, species completion, locally cached sprites/artwork, and click-through card printings
 - Virtual binders for collection and checklist views
 - Wishlist with Telegram price alerts
 
@@ -164,6 +165,7 @@ CORS_ORIGINS=https://yourdomain.com
 ### 2. Start
 
 ```bash
+mkdir -p data/pokedex-images backups
 docker compose up -d
 ```
 
@@ -177,6 +179,15 @@ docker compose up -d
 ### 4. First Sync
 
 On first launch, trigger a sync from the app to populate sets and cards from TCGdex.
+
+After upgrading an existing catalogue, populate Pokédex metadata and optionally pre-cache all species images:
+
+```bash
+docker compose exec backend python -m scripts.backfill_pokedex_metadata --limit 5000
+docker compose exec backend python -m scripts.cache_pokedex_images
+```
+
+Repeat the metadata command until `attempted` is `0`. See [National Pokédex documentation](docs/POKEDEX.md) for the data model, routes, cache behavior, and Cardmarket links.
 
 ### 5. Login
 

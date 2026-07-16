@@ -327,6 +327,108 @@ def strip_lang_suffix(card_db_id: str) -> tuple:
     return _strip_lang_suffix(card_db_id)
 
 
+def extract_dex_ids(card_data: Dict) -> list[int] | None:
+    """Normalize TCGdex ``dexId`` into a unique list of positive integers."""
+    raw = card_data.get("dexId")
+    if raw is None:
+        raw = card_data.get("dex_ids")
+    if raw is None:
+        return None
+    if not isinstance(raw, list):
+        raw = [raw]
+    result: list[int] = []
+    for value in raw:
+        try:
+            dex_id = int(value)
+        except (TypeError, ValueError):
+            continue
+        if dex_id > 0 and dex_id not in result:
+            result.append(dex_id)
+    return result or None
+
+
+def _product_id(value) -> int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, dict):
+        for key in ("idProduct", "productId", "product_id", "id"):
+            if key in value:
+                return _product_id(value.get(key))
+        return None
+    try:
+        product_id = int(value)
+    except (TypeError, ValueError):
+        return None
+    return product_id if product_id > 0 else None
+
+
+def extract_cardmarket_products(card_data: Dict) -> list[dict] | None:
+    """Return variant-aware Cardmarket product mappings from TCGdex data.
+
+    TCGdex historically represented ``variants`` as a boolean object and now
+    also exposes richer variant entries in its source data. This parser accepts
+    both without treating Cardmarket price values as product identifiers.
+    """
+    products: list[dict] = []
+
+    def add(product, variant=None, foil=None):
+        product_id = _product_id(product)
+        if not product_id:
+            return
+        row = {
+            "variant": str(variant) if variant not in (None, "") else None,
+            "foil": str(foil) if foil not in (None, "") else None,
+            "product_id": product_id,
+        }
+        if row not in products:
+            products.append(row)
+
+    variants = card_data.get("variants")
+    if isinstance(variants, list):
+        for entry in variants:
+            if not isinstance(entry, dict):
+                continue
+            third_party = entry.get("thirdParty") or entry.get("third_party") or {}
+            add(
+                third_party.get("cardmarket") if isinstance(third_party, dict) else None,
+                entry.get("type") or entry.get("variant") or entry.get("name"),
+                entry.get("foil") or entry.get("finish"),
+            )
+    elif isinstance(variants, dict):
+        # Some database exports use variant-name keys with nested metadata.
+        for variant_name, entry in variants.items():
+            if not isinstance(entry, dict):
+                continue
+            third_party = entry.get("thirdParty") or entry.get("third_party") or {}
+            add(
+                third_party.get("cardmarket") if isinstance(third_party, dict) else None,
+                entry.get("type") or variant_name,
+                entry.get("foil") or entry.get("finish"),
+            )
+
+    third_party = card_data.get("thirdParty") or card_data.get("third_party") or {}
+    if isinstance(third_party, dict):
+        value = third_party.get("cardmarket")
+        if isinstance(value, list):
+            for entry in value:
+                if isinstance(entry, dict):
+                    add(entry, entry.get("type") or entry.get("variant"), entry.get("foil"))
+                else:
+                    add(entry)
+        else:
+            add(value)
+
+    # Forward-compatible support if the public API adds the catalogue ID to
+    # the pricing object alongside prices.
+    pricing = card_data.get("pricing") or {}
+    cardmarket = pricing.get("cardmarket") if isinstance(pricing, dict) else None
+    if isinstance(cardmarket, dict):
+        add(cardmarket.get("idProduct") or cardmarket.get("productId"))
+
+    products.sort(key=lambda row: (row["product_id"], row.get("variant") or "", row.get("foil") or ""))
+    return products or None
+
+
 def parse_card_for_db(card_data: Dict, default_set_id: Optional[str] = None, lang: Optional[str] = None) -> Dict:
     """Parse TCGdex card data into database-ready format.
 
@@ -355,7 +457,22 @@ def parse_card_for_db(card_data: Dict, default_set_id: Optional[str] = None, lan
     tcgdex_id = card_data.get("id", "")
     db_id = f"{tcgdex_id}_{card_lang}"
 
-    variants = card_data.get("variants") or {}
+    raw_variants = card_data.get("variants") or {}
+    variants = raw_variants if isinstance(raw_variants, dict) else {}
+    is_full_detail = "category" in card_data
+    dex_ids = extract_dex_ids(card_data)
+    cardmarket_products = extract_cardmarket_products(card_data)
+    # NULL means a brief set-list row still needs enrichment. An empty list
+    # means a full TCGdex card response was checked and no mapping exists.
+    if is_full_detail and dex_ids is None:
+        dex_ids = []
+    if is_full_detail and cardmarket_products is None:
+        cardmarket_products = []
+    variant_types = {
+        str(entry.get("type") or "").replace("_", "").replace("-", "").lower()
+        for entry in raw_variants
+        if isinstance(raw_variants, list) and isinstance(entry, dict)
+    }
     retreat_raw = card_data.get("retreat")
     try:
         retreat = int(retreat_raw) if retreat_raw is not None else None
@@ -404,12 +521,14 @@ def parse_card_for_db(card_data: Dict, default_set_id: Optional[str] = None, lan
         "abilities": card_data.get("abilities"),
         "weaknesses": card_data.get("weaknesses"),
         "resistances": card_data.get("resistances"),
+        "dex_ids": dex_ids,
+        "cardmarket_products": cardmarket_products,
         "retreat": retreat,
         "playable_fingerprint": playable_fingerprint(card_data),
-        "variants_normal": variants.get("normal"),
-        "variants_reverse": variants.get("reverse"),
-        "variants_holo": variants.get("holo"),
-        "variants_first_edition": variants.get("firstEdition"),
+        "variants_normal": variants.get("normal") if variants else ("normal" in variant_types or None),
+        "variants_reverse": variants.get("reverse") if variants else ("reverse" in variant_types or None),
+        "variants_holo": variants.get("holo") if variants else ("holo" in variant_types or None),
+        "variants_first_edition": variants.get("firstEdition") if variants else ("firstedition" in variant_types or None),
         "price_source_lang": None,
         **prices,
     }

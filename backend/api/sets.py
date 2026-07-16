@@ -281,6 +281,15 @@ def get_set_checklist(
         checklist.append({
             "id": card.id,
             "name": card.name,
+            "tcg_card_id": card.tcg_card_id,
+            "set_id": card.set_id,
+            "set_ref": {
+                "id": set_obj.id,
+                "tcg_set_id": set_obj.tcg_set_id,
+                "name": set_obj.name,
+                "abbreviation": set_obj.abbreviation,
+                "lang": set_obj.lang,
+            },
             "number": card.number,
             "rarity": card.rarity,
             "images_small": card.images_small,
@@ -313,6 +322,13 @@ def get_set_checklist(
             "price_avg1_holo": card.price_avg1_holo,
             "price_avg7_holo": card.price_avg7_holo,
             "price_avg30_holo": card.price_avg30_holo,
+            "dex_ids": getattr(card, "dex_ids", None),
+            "cardmarket_products": getattr(card, "cardmarket_products", None),
+            "variants_normal": card.variants_normal,
+            "variants_reverse": card.variants_reverse,
+            "variants_holo": card.variants_holo,
+            "variants_first_edition": card.variants_first_edition,
+            "lang": card.lang or "en",
         })
 
     return {

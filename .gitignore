@@ -12,3 +12,7 @@ build/
 venv/
 node_modules/
 *.log
+
+# Local persistent data / caches
+/data/
+/backups/

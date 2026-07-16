@@ -32,6 +32,8 @@ class CardMetadataEnrichmentTests(unittest.TestCase):
             types=["Grass"],
             supertype="Pokemon",
             subtypes=["Basic", "EX"],
+            dex_ids=[3],
+            cardmarket_products=[],
             lang="en",
             is_custom=False,
         )
@@ -66,6 +68,38 @@ class CardMetadataEnrichmentTests(unittest.TestCase):
         )
 
         self.assertTrue(card_needs_metadata_enrichment(card))
+
+    def test_accented_pokemon_category_missing_pokedex_metadata_needs_enrichment(self):
+        card = Card(
+            id="sv1-1_de",
+            tcg_card_id="sv1-1",
+            name="Felori",
+            rarity="Common",
+            types=["Grass"],
+            supertype="Pokémon",
+            subtypes=["Basis"],
+            lang="de",
+            is_custom=False,
+        )
+
+        self.assertTrue(card_needs_metadata_enrichment(card))
+
+    def test_accented_pokemon_category_with_checked_pokedex_metadata_is_complete(self):
+        card = Card(
+            id="sv1-1_de",
+            tcg_card_id="sv1-1",
+            name="Felori",
+            rarity="Common",
+            types=["Grass"],
+            supertype="Pokémon",
+            subtypes=["Basis"],
+            dex_ids=[906],
+            cardmarket_products=[],
+            lang="de",
+            is_custom=False,
+        )
+
+        self.assertFalse(card_needs_metadata_enrichment(card))
 
     def test_partially_populated_card_needs_metadata_enrichment(self):
         card = Card(

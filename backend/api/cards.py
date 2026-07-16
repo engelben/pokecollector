@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Integer, String, or_
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.dialects.postgresql import JSONB
 from typing import Optional, List
 from api.auth import get_current_user
 from database import get_db
@@ -36,7 +37,13 @@ _CODE_NUMBER_RE = re.compile(r'^([A-Za-z]+\d*)\s+(\d+)$')
 def _card_to_dict(card: Card) -> dict:
     """Convert a Card ORM object to a dict matching the search result format."""
     set_ref = getattr(card, 'set_ref', None)
-    set_ref_dict = {"id": set_ref.id, "name": set_ref.name} if set_ref else None
+    set_ref_dict = {
+        "id": set_ref.id,
+        "tcg_set_id": set_ref.tcg_set_id,
+        "name": set_ref.name,
+        "abbreviation": set_ref.abbreviation,
+        "lang": set_ref.lang,
+    } if set_ref else None
     return {
         "id": card.id,
         "name": card.name,
@@ -61,6 +68,8 @@ def _card_to_dict(card: Card) -> dict:
         "abilities": getattr(card, "abilities", None),
         "weaknesses": getattr(card, "weaknesses", None),
         "resistances": getattr(card, "resistances", None),
+        "dex_ids": getattr(card, "dex_ids", None),
+        "cardmarket_products": getattr(card, "cardmarket_products", None),
         "retreat": getattr(card, "retreat", None),
         "playable_fingerprint": getattr(card, "playable_fingerprint", None),
         "images_small": card.images_small,
@@ -89,6 +98,10 @@ def _card_to_dict(card: Card) -> dict:
         "price_tcg_reverse_market": getattr(card, 'price_tcg_reverse_market', None),
         "price_tcg_holo_market": getattr(card, 'price_tcg_holo_market', None),
         "price_source_lang": getattr(card, "price_source_lang", None),
+        "variants_normal": getattr(card, "variants_normal", None),
+        "variants_reverse": getattr(card, "variants_reverse", None),
+        "variants_holo": getattr(card, "variants_holo", None),
+        "variants_first_edition": getattr(card, "variants_first_edition", None),
     }
 
 
@@ -106,6 +119,14 @@ def _with_collection_summary(db: Session, current_user: User, card_dicts: List[d
     for item in items:
         by_card.setdefault(item.card_id, []).append(item)
 
+    wishlist_card_ids = {
+        row[0]
+        for row in db.query(WishlistItem.card_id).filter(
+            WishlistItem.user_id == current_user.id,
+            WishlistItem.card_id.in_(card_ids),
+        ).all()
+    }
+
     for card in card_dicts:
         owned_items = by_card.get(card.get("id"), [])
         card["owned"] = bool(owned_items)
@@ -121,6 +142,7 @@ def _with_collection_summary(db: Session, current_user: User, card_dicts: List[d
             }
             for item in owned_items
         ]
+        card["wishlisted"] = card.get("id") in wishlist_card_ids
     return card_dicts
 
 
@@ -414,6 +436,7 @@ def search_cards(
     artist: Optional[str] = None,
     hp_min: Optional[int] = None,
     hp_max: Optional[int] = None,
+    dex_id: Optional[int] = Query(None, ge=1, le=1025),
     sort_by: Optional[str] = None,
     sort_order: Optional[str] = "asc",
     page: int = 1,
@@ -486,12 +509,19 @@ def search_cards(
         if hp_max is not None:
             query = query.filter(cast(Card.hp, Integer) <= hp_max)
 
+        if isinstance(dex_id, int):
+            query = query.filter(Card.dex_ids.op("@>")(cast([dex_id], JSONB)))
+
         if sort_by == "name":
             col = Card.name
         elif sort_by == "number":
             col = Card.number
         elif sort_by == "rarity":
             col = Card.rarity
+        elif sort_by == "price_low":
+            col = Card.price_low
+        elif sort_by == "price_market":
+            col = Card.price_market
         else:
             col = Card.name
 
