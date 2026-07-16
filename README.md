@@ -181,14 +181,19 @@ docker compose up -d
 
 On first launch, trigger a sync from the app to populate sets and cards from TCGdex.
 
-After upgrading an existing catalogue, populate Pokédex metadata and optionally pre-cache all species images:
+After upgrading an existing catalogue, the backend automatically runs the one-time Pokédex metadata backfill in the background and records completion in the database. If you need to retry or inspect it manually, run:
 
 ```bash
 docker compose exec backend python -m scripts.backfill_pokedex_metadata --limit 5000
+```
+
+Repeat the metadata command until `attempted` is `0`. You can optionally pre-cache all species images:
+
+```bash
 docker compose exec backend python -m scripts.cache_pokedex_images
 ```
 
-Repeat the metadata command until `attempted` is `0`. See [National Pokédex documentation](docs/POKEDEX.md) for the data model, routes, cache behavior, and Cardmarket links.
+See [National Pokédex documentation](docs/POKEDEX.md) for the data model, routes, cache behavior, and Cardmarket links.
 
 ### 5. Login
 
@@ -248,6 +253,9 @@ The **Users** tab is only visible to admin users and only while multi-user mode 
 | `ADMIN_BOOTSTRAP_LOG` | Whether bootstrap credentials may be logged on first start | `true` |
 | `PUBLIC_MODE` | Enable SEO meta tags, Open Graph, and allow search engine indexing. Default blocks all crawlers. Requires rebuild. | `false` |
 | `CORS_ORIGINS` | Comma-separated list of allowed origins for CORS. If empty, allows all origins. Set to your domain for production (e.g. `https://pokecollector.romerg.de`). | *(all)* |
+| `POKEDEX_METADATA_BACKFILL_ON_STARTUP` | Run the one-time Pokédex metadata backfill automatically after startup when existing card rows are missing `dex_ids` or Cardmarket product metadata | `true` |
+| `POKEDEX_METADATA_BACKFILL_BATCH_LIMIT` | Number of cards selected per automatic Pokédex metadata backfill batch | `5000` |
+| `POKEDEX_METADATA_BACKFILL_BATCH_DELAY_SECONDS` | Pause between automatic Pokédex metadata backfill batches to avoid a tight TCGdex request loop | `0.5` |
 | `PRE_UPGRADE_BACKUP_ENABLED` | Create an automatic SQL backup before startup migrations when an existing install starts on a new app version | `true` |
 | `PRE_UPGRADE_BACKUP_REQUIRED` | Stop startup if the automatic pre-upgrade backup fails. Set to `false` only if you have another verified backup process. | `true` |
 | `PRE_UPGRADE_BACKUP_KEEP` | Number of automatic pre-upgrade backups to retain in `/app/backups`; minimum `1` | `10` |

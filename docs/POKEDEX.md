@@ -14,14 +14,14 @@ A multi-Pokémon card can contain several `dex_ids` and counts toward each speci
 - Full TCGdex card enrichment stores `dexId` as `cards.dex_ids`.
 - TCGdex variant-level Cardmarket catalogue IDs are stored in `cards.cardmarket_products` without collapsing foil variants.
 
-Existing set-list rows only contain brief card data. Run the metadata backfill after upgrading:
+Existing set-list rows only contain brief card data. After upgrading, the backend starts a one-time background backfill and records completion in the `pokedex_metadata_backfill_completed` setting. To retry or inspect the backfill manually:
 
 ```bash
 docker compose exec backend \
   python -m scripts.backfill_pokedex_metadata --limit 5000
 ```
 
-Repeat until `attempted` becomes `0`, or use `--refresh` to refetch selected catalogue rows.
+Repeat the manual command until `attempted` becomes `0`, or use `--refresh` to refetch selected catalogue rows.
 
 ## Image cache
 

@@ -3,15 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 
-from sqlalchemy import func, or_
-
 from database import SessionLocal
 from models import Card
 from services.card_metadata import (
-    POKEMON_SUPERTYPE_VALUES,
-    _json_value_missing,
     enrich_cards_metadata,
 )
+from services.pokedex_backfill import pokedex_backfill_query
 
 
 def main() -> int:
@@ -24,14 +21,13 @@ def main() -> int:
 
     db = SessionLocal()
     try:
-        query = db.query(Card).filter(Card.is_custom.is_(False), Card.tcg_card_id.isnot(None))
+        query = pokedex_backfill_query(db)
         if args.language:
             query = query.filter(Card.lang == args.language)
-        if not args.refresh:
-            query = query.filter(
-                or_(_json_value_missing(Card.dex_ids), _json_value_missing(Card.cardmarket_products)),
-                or_(Card.supertype.is_(None), func.lower(Card.supertype).in_(POKEMON_SUPERTYPE_VALUES)),
-            )
+        if args.refresh:
+            query = db.query(Card).filter(Card.is_custom.is_(False), Card.tcg_card_id.isnot(None))
+            if args.language:
+                query = query.filter(Card.lang == args.language)
         cards = query.order_by(Card.updated_at.asc(), Card.id.asc()).limit(max(args.limit, 1)).all()
         # Force the selected rows through enrichment; the generic selector is
         # intentionally bypassed because Cardmarket IDs may be absent even on

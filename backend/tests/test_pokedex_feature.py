@@ -1,7 +1,8 @@
+import datetime
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -11,6 +12,13 @@ from models import Card, CollectionItem, Setting, User
 
 from services.pokemon_api import extract_cardmarket_products, extract_dex_ids, parse_card_for_db
 from services.pokedex import aggregate_pokedex, load_pokedex, normalize_dex_ids
+from services.pokedex_backfill import (
+    COMPLETED_SETTING_KEY,
+    STATUS_SETTING_KEY,
+    missing_pokedex_metadata_count,
+    pokedex_metadata_backfill_completed,
+    run_pokedex_metadata_backfill,
+)
 from services import pokedex_images
 
 
@@ -153,6 +161,88 @@ class PokedexAggregationTests(unittest.TestCase):
         unpadded = aggregate_pokedex(self.db, self.user.id, search="94")
         self.assertEqual([row["dex_id"] for row in padded["entries"]], [94])
         self.assertEqual([row["dex_id"] for row in unpadded["entries"]], [94])
+
+
+class PokedexBackfillTests(unittest.TestCase):
+    def setUp(self):
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        self.db = Session()
+
+    def tearDown(self):
+        self.db.close()
+
+    def test_completed_marker_skips_startup_backfill(self):
+        self.db.add_all([
+            Setting(key=COMPLETED_SETTING_KEY, value="true"),
+            Card(id="base-25_en", tcg_card_id="base-25", name="Pikachu", lang="en", is_custom=False, supertype="Pokemon"),
+        ])
+        self.db.commit()
+
+        with patch("services.pokedex_backfill.enrich_cards_metadata") as enrich:
+            result = run_pokedex_metadata_backfill(self.db)
+
+        self.assertTrue(result["skipped"])
+        enrich.assert_not_called()
+
+    def test_backfill_marks_complete_after_missing_rows_are_enriched(self):
+        self.db.add(Card(
+            id="base-25_en",
+            tcg_card_id="base-25",
+            name="Pikachu",
+            lang="en",
+            is_custom=False,
+            supertype="Pokemon",
+        ))
+        self.db.commit()
+        self.assertEqual(missing_pokedex_metadata_count(self.db), 1)
+
+        def enrich(db, cards, **_kwargs):
+            for card in cards:
+                card.dex_ids = [25]
+                card.cardmarket_products = []
+                db.add(card)
+            db.commit()
+            return {"attempted": len(cards), "updated": len(cards), "missing": 0, "failed": 0, "ids": [card.id for card in cards]}
+
+        with patch("services.pokedex_backfill.enrich_cards_metadata", side_effect=enrich):
+            result = run_pokedex_metadata_backfill(self.db, batch_limit=10)
+
+        self.assertTrue(result["completed"])
+        self.assertEqual(result["attempted"], 1)
+        self.assertTrue(pokedex_metadata_backfill_completed(self.db))
+        self.assertEqual(self.db.query(Setting).filter(Setting.key == STATUS_SETTING_KEY).count(), 1)
+        self.assertEqual(missing_pokedex_metadata_count(self.db), 0)
+
+    def test_missing_rows_are_attempted_once_without_looping_forever(self):
+        self.db.add(Card(
+            id="missing-25_en",
+            tcg_card_id="missing-25",
+            name="Missing",
+            lang="en",
+            is_custom=False,
+            supertype="Pokemon",
+        ))
+        self.db.commit()
+        attempts = []
+
+        def enrich(db, cards, **_kwargs):
+            attempts.extend(card.id for card in cards)
+            for card in cards:
+                card.updated_at = datetime.datetime.utcnow()
+                db.add(card)
+            db.commit()
+            return {"attempted": len(cards), "updated": 0, "missing": len(cards), "failed": 0, "ids": []}
+
+        with patch("services.pokedex_backfill.enrich_cards_metadata", side_effect=enrich):
+            result = run_pokedex_metadata_backfill(self.db, batch_limit=1, batch_delay_seconds=0)
+
+        self.assertTrue(result["completed"])
+        self.assertEqual(result["attempted"], 1)
+        self.assertEqual(attempts, ["missing-25_en"])
+        self.assertEqual(missing_pokedex_metadata_count(self.db), 1)
+        self.assertTrue(pokedex_metadata_backfill_completed(self.db))
 
 
 class PokedexImageCacheTests(unittest.TestCase):

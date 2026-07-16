@@ -1,5 +1,6 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.date import DateTrigger
 import logging
 import datetime
 
@@ -70,6 +71,47 @@ def run_price_sync():
         db.close()
 
 
+def run_pokedex_metadata_backfill():
+    """One-time startup backfill for Pokédex mappings added to existing card rows."""
+    from database import SessionLocal
+    from services.pokedex_backfill import run_pokedex_metadata_backfill as run_backfill
+    from services.pokedex_backfill import startup_pokedex_backfill_batch_delay_seconds
+    from services.pokedex_backfill import startup_pokedex_backfill_batch_limit
+
+    db = SessionLocal()
+    try:
+        logger.info("Starting one-time Pokédex metadata backfill...")
+        result = run_backfill(
+            db,
+            batch_limit=startup_pokedex_backfill_batch_limit(),
+            batch_delay_seconds=startup_pokedex_backfill_batch_delay_seconds(),
+        )
+        if result.get("skipped"):
+            logger.info("Pokédex metadata backfill skipped: %s", result.get("reason"))
+        elif result.get("completed"):
+            logger.info(
+                "Pokédex metadata backfill completed: attempted=%s updated=%s missing=%s failed=%s batches=%s",
+                result["attempted"],
+                result["updated"],
+                result["missing"],
+                result["failed"],
+                result["batches"],
+            )
+        else:
+            logger.warning(
+                "Pokédex metadata backfill stopped before completion: attempted=%s updated=%s missing=%s failed=%s batches=%s",
+                result["attempted"],
+                result["updated"],
+                result["missing"],
+                result["failed"],
+                result["batches"],
+            )
+    except Exception as e:
+        logger.error("Pokédex metadata backfill failed: %s", e)
+    finally:
+        db.close()
+
+
 # Keep legacy alias
 def run_sync():
     """Legacy alias for run_full_sync."""
@@ -84,8 +126,18 @@ def start_scheduler():
         # Only run full sync immediately on first boot if DB has no cards
         from database import SessionLocal
         from models import Card
+        from services.pokedex_backfill import (
+            missing_pokedex_metadata_count,
+            pokedex_metadata_backfill_completed,
+            startup_pokedex_backfill_enabled,
+        )
         with SessionLocal() as db:
             needs_initial_sync = db.query(Card).count() == 0
+            needs_pokedex_backfill = (
+                startup_pokedex_backfill_enabled()
+                and not pokedex_metadata_backfill_completed(db)
+                and missing_pokedex_metadata_count(db) > 0
+            )
 
         full_interval_days = _get_full_sync_interval_days()
         price_interval_minutes = _get_price_sync_interval_minutes()
@@ -111,11 +163,21 @@ def start_scheduler():
             next_run_time=now_utc + datetime.timedelta(minutes=price_interval_minutes),
         )
 
+        if needs_pokedex_backfill:
+            scheduler.add_job(
+                run_pokedex_metadata_backfill,
+                trigger=DateTrigger(run_date=now_utc + datetime.timedelta(seconds=30)),
+                id="pokedex_metadata_backfill_job",
+                name="One-time Pokédex Metadata Backfill",
+                replace_existing=True,
+            )
+
         scheduler.start()
         logger.info(
             f"Scheduler started — full sync every {full_interval_days} days "
             f"({'immediately' if needs_initial_sync else f'in {full_interval_days} days'}), "
             f"small price sync every {price_interval_minutes} minutes"
+            f"{', one-time Pokédex metadata backfill scheduled' if needs_pokedex_backfill else ''}"
         )
     else:
         logger.info("Scheduler already running")
