@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard, Search, Library, Grid2X2, Heart,
-  BookOpen, BarChart3, ShoppingBag, ArrowRightLeft, Settings, Zap, LogOut
+  BookOpen, BarChart3, ShoppingBag, ArrowRightLeft, Settings, Zap, LogOut, ListOrdered
 } from 'lucide-react'
 import { getDashboard, getCustomMatches } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
@@ -17,6 +17,7 @@ export default function Sidebar() {
     { to: '/dashboard',  icon: LayoutDashboard, label: t('nav.dashboard') },
     { to: '/search',     icon: Search,           label: t('nav.cardSearch') },
     { to: '/collection', icon: Library,          label: t('nav.collection') },
+    { to: '/pokedex',    icon: ListOrdered,      label: t('nav.pokedex') },
     { to: '/sets',       icon: Grid2X2,          label: t('nav.sets') },
     { to: '/wishlist',   icon: Heart,             label: t('nav.wishlist') },
     { to: '/binders',    icon: BookOpen,          label: t('nav.binders') },

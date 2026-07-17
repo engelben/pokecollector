@@ -6,7 +6,7 @@ import datetime
 import logging
 from typing import Iterable
 
-from sqlalchemy import and_, or_
+from sqlalchemy import JSON, and_, func, or_
 from sqlalchemy.orm import Session
 
 from models import Card, Set
@@ -18,6 +18,18 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_METADATA_ENRICHMENT_PER_FULL_SYNC = 500
 METADATA_ENRICHMENT_PER_SEARCH_PAGE = 20
+POKEMON_SUPERTYPE_VALUES = ("pokemon", "pokémon")
+ELEMENTAL_SUPERTYPE_VALUES = (*POKEMON_SUPERTYPE_VALUES, "energy")
+
+
+def _json_value_missing(column):
+    """Match both SQL NULL and legacy JSON literal null values.
+
+    SQLAlchemy JSON/JSONB columns historically persisted Python ``None`` as
+    JSON ``null`` unless ``none_as_null`` was enabled. ``IS NULL`` alone does
+    not match those rows, so metadata backfills must handle both forms.
+    """
+    return or_(column.is_(None), column == JSON.NULL)
 
 _ANY_METADATA_FIELDS = (
     "rarity",
@@ -57,7 +69,12 @@ def card_needs_metadata_enrichment(card: Card) -> bool:
         return True
     if any(not _has_value(getattr(card, field, None)) for field in _KEY_METADATA_FIELDS):
         return True
-    if (card.supertype or "").lower() in {"pokemon", "energy"} and not _has_value(card.types):
+    supertype = (card.supertype or "").strip().casefold()
+    if supertype in ELEMENTAL_SUPERTYPE_VALUES and not _has_value(card.types):
+        return True
+    if supertype in POKEMON_SUPERTYPE_VALUES and (
+        card.dex_ids is None or card.cardmarket_products is None
+    ):
         return True
     return False
 
@@ -102,6 +119,7 @@ def enrich_cards_metadata(
     *,
     limit: int,
     commit_every: int = 50,
+    force: bool = False,
 ) -> dict:
     """Enrich up to limit cards, isolating failures so one bad card does not abort the batch."""
     result = {"attempted": 0, "updated": 0, "missing": 0, "failed": 0, "ids": []}
@@ -109,7 +127,7 @@ def enrich_cards_metadata(
     for card in cards:
         if len(selected) >= limit:
             break
-        if card_needs_metadata_enrichment(card):
+        if force or card_needs_metadata_enrichment(card):
             selected.append(card)
 
     for card in selected:
@@ -154,11 +172,15 @@ def enrich_missing_card_metadata(
                 Card.rarity.is_(None),
                 Card.supertype.is_(None),
                 Card.subtypes.is_(None),
-                and_(Card.types.is_(None), Card.supertype.in_(["Pokemon", "Energy"])),
+                and_(Card.types.is_(None), func.lower(Card.supertype).in_(ELEMENTAL_SUPERTYPE_VALUES)),
+                and_(
+                    or_(_json_value_missing(Card.dex_ids), _json_value_missing(Card.cardmarket_products)),
+                    func.lower(Card.supertype).in_(POKEMON_SUPERTYPE_VALUES),
+                ),
             ),
         )
         .order_by(Card.updated_at.asc(), Card.id.asc())
         .limit(limit)
         .all()
     )
-    return enrich_cards_metadata(db, candidates, limit=limit)
+    return enrich_cards_metadata(db, candidates, limit=limit, force=True)

@@ -137,6 +137,10 @@ export const addToWishlist = (data) => api.post('/wishlist/', data)
 export const updateWishlistItem = (id, data) => api.put(`/wishlist/${id}`, data)
 export const removeFromWishlist = (id) => api.delete(`/wishlist/${id}`)
 
+// National Pokédex
+export const getPokedex = (params = {}) => api.get('/pokedex', { params }).then(r => r.data)
+export const getPokedexSpecies = (dexId, params = {}) => api.get(`/pokedex/${dexId}`, { params }).then(r => r.data)
+
 // Binders
 export const getBinders = () => api.get('/binders/')
 export const createBinder = (data) => api.post('/binders/', data)

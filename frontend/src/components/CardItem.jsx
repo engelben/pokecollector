@@ -2,7 +2,7 @@ import { useState, useEffect, useId, memo } from 'react'
 import { createPortal } from 'react-dom'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Plus, Check, Heart, BookOpen, X, PenLine, Pencil,  Trash2 } from 'lucide-react'
+import { Plus, Check, Heart, BookOpen, X, PenLine, Pencil, Trash2, ExternalLink } from 'lucide-react'
 import { addToCollection, addToWishlist, createCustomCard, updateCustomCard, updateCardCustomImage, deleteCustomCard, getSets, getPriceHistory } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import toast from 'react-hot-toast'
@@ -16,6 +16,7 @@ import { getEffectiveCardPrice } from '../utils/prices'
 import { tcgdexLanguageBadgeClass, tcgdexLanguageLabel, getTcgdexLanguage } from '../utils/tcgdexLanguages'
 import { invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
 import { parseMoneyInputValue } from '../utils/moneyInput'
+import { cardmarketLinks } from '../utils/cardmarket'
 
 function askWishlistQuantity(t, defaultQuantity = 1) {
   const initialQuantity = Math.max(1, Math.min(99, parseInt(defaultQuantity, 10) || 1))
@@ -141,6 +142,7 @@ export function CustomCardModal({ onClose, onCreated, sets: setsProp = [], autoA
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['custom-cards'] })
       queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
+      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'pokedex' })
       onClose()
     },
     onError: (err) => {
@@ -599,6 +601,16 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
   const setName = card.set?.name || card.set_ref?.name
   const modalOwnedItems = ownedItems || card.owned_items || []
   const ownedQuantity = card.owned_quantity ?? modalOwnedItems.reduce((sum, item) => sum + (item.quantity || 0), 0)
+  const availableVariants = getAvailableVariants(card)
+  const selectableVariants = availableVariants.length > 0 ? availableVariants : CARD_VARIANTS
+  const availableVariantKey = availableVariants.join('|')
+  const marketLinks = cardmarketLinks(card, variant)
+
+  useEffect(() => {
+    if (availableVariants.length > 0 && !availableVariants.includes(variant)) {
+      setVariant(getDefaultVariant(card))
+    }
+  }, [card.id, availableVariantKey, variant])
 
   const addMutation = useMutation({
     mutationFn: (data) => addToCollection(data),
@@ -608,6 +620,7 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
       invalidateTcgdexFilterLanguages(queryClient)
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
+      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'pokedex' })
       onClose()
     },
     onError: () => toast.error(t('card.addFailed')),
@@ -667,9 +680,15 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
     .map(key => {
       const field = HOLO_PRICE_FIELD_MAP[key]
       const val = card[field]
-      return val != null ? { key, val } : null
+      const displayKey = key.replace('-holo', '')
+      return val != null ? { key, displayKey, val } : null
     })
     .filter(Boolean)
+
+  const isReverseHolo = variant === 'Reverse Holo'
+  const selectedPriceBreakdown = isReverseHolo && displayedHoloPrices.length > 0
+    ? displayedHoloPrices
+    : displayedPrices.map(({ key, val }) => ({ key, displayKey: key, val }))
 
   const tcgPrices = [
     card.price_tcg_normal_market != null ? { key: 'tcg-normal', val: card.price_tcg_normal_market, label: 'Normal' } : null,
@@ -773,21 +792,21 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
               )}
             </div>
 
-            {displayedPrices.length > 0 && (
+            {selectedPriceBreakdown.length > 0 && (
               <div className="bg-bg-card rounded-xl p-3 space-y-3">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <p className="text-xs text-text-muted font-medium uppercase tracking-wide">
-                    {t('prices.cardmarketTitle')}
+                    {t('prices.cardmarketTitle')} · {variant}
                   </p>
                 </div>
                 {selectedPrimaryPrice != null && (
                   <p className="text-2xl font-bold text-green">{formatPrice(selectedPrimaryPrice)}</p>
                 )}
                 <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 text-xs border-t border-border pt-2">
-                  {displayedPrices.map(({ key, val }) => (
+                  {selectedPriceBreakdown.map(({ key, displayKey, val }) => (
                     <div key={key}>
-                      <span className="text-text-muted">{t(`prices.${key}`)}</span>
-                      <p className={key === 'trend' ? 'text-green font-bold' : 'text-text-primary font-bold'}>
+                      <span className="text-text-muted">{t(`prices.${displayKey}`)}</span>
+                      <p className={displayKey === 'trend' ? 'text-green font-bold' : 'text-text-primary font-bold'}>
                         {formatPrice(val)}
                       </p>
                     </div>
@@ -796,19 +815,30 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
               </div>
             )}
 
-            {displayedHoloPrices.length > 0 && (
-              <div className="bg-bg-card rounded-xl p-3 space-y-2">
+            {!card.is_custom && marketLinks.length > 0 && (
+              <div className="bg-bg-card rounded-xl p-3 space-y-2 border border-border">
                 <p className="text-xs text-text-muted font-medium uppercase tracking-wide">
-                  Cardmarket Holo
+                  {t('cardmarket.buy')}
                 </p>
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 text-xs">
-                  {displayedHoloPrices.map(({ key, val }) => (
-                    <div key={key}>
-                      <span className="text-text-muted block">{key}</span>
-                      <span className="font-bold text-green">{formatPrice(val)}</span>
-                    </div>
+                <div className="flex flex-wrap gap-2">
+                  {marketLinks.map((link) => (
+                    <a
+                      key={link.productId || link.url}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-ghost text-xs inline-flex items-center gap-1.5"
+                    >
+                      <ExternalLink size={14} />
+                      {link.fallback
+                        ? t('cardmarket.search')
+                        : link.label || t('cardmarket.openProduct')}
+                    </a>
                   ))}
                 </div>
+                {marketLinks.some((link) => link.fallback) && (
+                  <p className="text-[10px] text-text-muted">{t('cardmarket.searchFallback')}</p>
+                )}
               </div>
             )}
 
@@ -974,16 +1004,13 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
               <div>
                 <label className="text-xs text-text-muted mb-1 block font-medium">✨ {t('card.variant')}</label>
                 <select value={variant} onChange={(e) => setVariant(e.target.value)} className="select">
-                  {CARD_VARIANTS.map(v => <option key={v} value={v}>{v}</option>)}
+                  {selectableVariants.map(v => <option key={v} value={v}>{v}</option>)}
                 </select>
-                {(() => {
-                  const available = getAvailableVariants(card)
-                  return available.length > 0 ? (
-                    <p className="text-[10px] text-text-muted mt-1">
-                      📋 {t('card.availableVariants')}: {available.join(', ')}
-                    </p>
-                  ) : null
-                })()}
+                {availableVariants.length > 0 && (
+                  <p className="text-[10px] text-text-muted mt-1">
+                    📋 {t('card.availableVariants')}: {availableVariants.join(', ')}
+                  </p>
+                )}
               </div>
               {card.rarity && (
                 <div>

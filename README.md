@@ -34,6 +34,7 @@ Be kind. Be clear. Assume good intent. Keep feedback constructive.
 - [Environment Variables](#-environment-variables)
 - [Architecture](#-architecture)
 - [Tech Stack](#-tech-stack)
+- [External Sources](#-external-sources)
 - [Documentation](#-documentation)
 - [Configuration Reference](#-configuration-reference)
 - [Updating](#-updating)
@@ -64,6 +65,7 @@ Be kind. Be clear. Assume good intent. Keep feedback constructive.
 
 ### 🗂️ Sets, Binders & Wishlist
 - Set overview with completion progress and per-set checklist
+- National Pokédex #001–1025 with generation filters, species completion, locally cached sprites/artwork, and click-through card printings
 - Virtual binders for collection and checklist views
 - Wishlist with Telegram price alerts
 
@@ -164,6 +166,7 @@ CORS_ORIGINS=https://yourdomain.com
 ### 2. Start
 
 ```bash
+mkdir -p data/pokedex-images backups
 docker compose up -d
 ```
 
@@ -177,6 +180,20 @@ docker compose up -d
 ### 4. First Sync
 
 On first launch, trigger a sync from the app to populate sets and cards from TCGdex.
+
+After upgrading an existing catalogue, the backend automatically runs the one-time Pokédex metadata backfill in the background and records completion in the database. If you need to retry or inspect it manually, run:
+
+```bash
+docker compose exec backend python -m scripts.backfill_pokedex_metadata --limit 5000
+```
+
+Repeat the metadata command until `attempted` is `0`. You can optionally pre-cache all species images:
+
+```bash
+docker compose exec backend python -m scripts.cache_pokedex_images
+```
+
+See [National Pokédex documentation](docs/POKEDEX.md) for the data model, routes, cache behavior, and Cardmarket links.
 
 ### 5. Login
 
@@ -236,6 +253,9 @@ The **Users** tab is only visible to admin users and only while multi-user mode 
 | `ADMIN_BOOTSTRAP_LOG` | Whether bootstrap credentials may be logged on first start | `true` |
 | `PUBLIC_MODE` | Enable SEO meta tags, Open Graph, and allow search engine indexing. Default blocks all crawlers. Requires rebuild. | `false` |
 | `CORS_ORIGINS` | Comma-separated list of allowed origins for CORS. If empty, allows all origins. Set to your domain for production (e.g. `https://pokecollector.romerg.de`). | *(all)* |
+| `POKEDEX_METADATA_BACKFILL_ON_STARTUP` | Run the one-time Pokédex metadata backfill automatically after startup when existing card rows are missing `dex_ids` or Cardmarket product metadata | `true` |
+| `POKEDEX_METADATA_BACKFILL_BATCH_LIMIT` | Number of cards selected per automatic Pokédex metadata backfill batch | `5000` |
+| `POKEDEX_METADATA_BACKFILL_BATCH_DELAY_SECONDS` | Pause between automatic Pokédex metadata backfill batches to avoid a tight TCGdex request loop | `0.5` |
 | `PRE_UPGRADE_BACKUP_ENABLED` | Create an automatic SQL backup before startup migrations when an existing install starts on a new app version | `true` |
 | `PRE_UPGRADE_BACKUP_REQUIRED` | Stop startup if the automatic pre-upgrade backup fails. Set to `false` only if you have another verified backup process. | `true` |
 | `PRE_UPGRADE_BACKUP_KEEP` | Number of automatic pre-upgrade backups to retain in `/app/backups`; minimum `1` | `10` |
@@ -243,6 +263,8 @@ The **Users** tab is only visible to admin users and only while multi-user mode 
 Supported `TCGDEX_SYNC_LANGUAGES` codes: `en`, `fr`, `es`, `es-mx`, `it`, `pt`, `pt-br`, `pt-pt`, `de`, `nl`, `pl`, `ru`, `ja`, `ko`, `zh-tw`, `id`, `th`, `zh-cn`. The env value `all` expands to the full supported language list during first bootstrap.
 
 English is used as the preferred fallback source for missing synced data, images, and prices when the same TCGdex card or set ID exists in English. Regional-only cards that do not exist in English are kept in their native language data instead of being guessed by name.
+
+For Pokédex metadata only, full Pokémon card details can infer a missing TCGdex `dexId` from an exact English or German base species name. This covers cards like Mega Charizard / Mega-Glurak when TCGdex omits `dexId`, while avoiding non-Pokémon cards and unclear names.
 
 The app UI language selector includes the supported TCGdex language set plus Swedish. The TCGdex sync-language selector controls card/set data sync only; changing the app UI language does not automatically sync additional card languages.
 
@@ -283,6 +305,24 @@ The old nested `pokemon-tcg-collection/` layout is no longer used.
 | Card Data | [TCGdex](https://tcgdex.dev/) |
 | AI Scanner | Google Gemini, configurable via `GEMINI_MODEL` |
 | Deploy | Docker + Docker Compose |
+
+---
+
+## 🌐 External Sources
+
+PokéCollector is self-hosted, but it can call these external sources depending on enabled features and user actions:
+
+| Source | Host(s) | Used for | When it is called |
+|--------|---------|----------|-------------------|
+| TCGdex | `api.tcgdex.net`, `assets.tcgdex.net` | Set/card catalogue data, images, prices, localized card metadata, Pokédex `dexId`, and Cardmarket product metadata | Initial sync, manual/admin sync, search fallbacks, metadata backfills, and card image display |
+| PokeAPI sprites | `raw.githubusercontent.com/PokeAPI/sprites` | Profile/avatar GIFs, achievement badges, binder icons, National Pokédex sprites, and official artwork cache | Browser image display, Pokédex image cache misses, and `scripts.cache_pokedex_images` |
+| Google Gemini | `generativelanguage.googleapis.com` | AI card scanner recognition | Only when scanner recognition is used and `GEMINI_API_KEY` is configured |
+| Telegram Bot API | `api.telegram.org` | Telegram notifications and alerts | Only when Telegram settings are configured and an alert/notification is sent |
+| Frankfurter | `api.frankfurter.dev` | Currency exchange rates | Currency conversion and Telegram price formatting when non-EUR values are needed |
+| GitHub | `api.github.com`, `raw.githubusercontent.com`, `avatars.githubusercontent.com`, `github.com` | Community contributor/supporter data, GitHub avatars, project links, and release/source links | Settings community section and linked project metadata |
+| Cardmarket | `www.cardmarket.com` | Product/search links for cards | Browser opens outbound links only; PokéCollector does not call a Cardmarket API |
+
+Build and dependency installation also contact package/distribution registries such as npm and the PostgreSQL apt repository when Docker images are built.
 
 ---
 

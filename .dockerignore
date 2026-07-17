@@ -17,3 +17,5 @@ frontend/.vite
 backend/__pycache__
 backend/backups
 backend/debug
+
+/data

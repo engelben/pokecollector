@@ -56,6 +56,8 @@ CARD_COPY_FIELDS = (
     "abilities",
     "weaknesses",
     "resistances",
+    "dex_ids",
+    "cardmarket_products",
     "retreat",
     "playable_fingerprint",
     "variants_normal",

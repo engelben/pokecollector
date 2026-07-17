@@ -8,7 +8,7 @@ export const PRICE_PRIMARY_TO_FIELD = {
   low: 'price_low',
 }
 
-export const HOLO_VARIANTS = new Set(['Holo', 'Holo Rare', 'Holo V', 'Holo VMAX', 'Holo VSTAR', 'Holo ex', 'Reverse Holo'])
+export const REVERSE_HOLO_VARIANTS = new Set(['Reverse Holo'])
 
 export const HOLO_FIELD_MAP = {
   price_market: 'price_market_holo',
@@ -31,7 +31,7 @@ function positivePrice(value) {
 
 export function getEffectiveCardPrice(card, variant, priceField = 'price_trend') {
   if (!card) return 0
-  if (HOLO_VARIANTS.has(variant)) {
+  if (REVERSE_HOLO_VARIANTS.has(variant)) {
     const holoField = HOLO_FIELD_MAP[priceField]
     const candidates = [
       holoField ? card[holoField] : null,

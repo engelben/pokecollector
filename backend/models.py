@@ -4,7 +4,10 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import JSONB
 from database import Base
+
+POKEDEX_JSON = JSON(none_as_null=True).with_variant(JSONB(none_as_null=True), "postgresql")
 
 
 class Set(Base):
@@ -62,6 +65,8 @@ class Card(Base):
     abilities = Column(JSON)
     weaknesses = Column(JSON)
     resistances = Column(JSON)
+    dex_ids = Column(POKEDEX_JSON)
+    cardmarket_products = Column(POKEDEX_JSON)
     retreat = Column(Integer)
     playable_fingerprint = Column(String)
     images_small = Column(String)

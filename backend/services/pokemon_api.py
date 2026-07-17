@@ -1,6 +1,10 @@
 import httpx
+import re
+from functools import lru_cache
 from typing import Optional, Dict, Any, List
 from services.card_gameplay import playable_fingerprint
+from services.pokedex import load_pokedex
+from services.text_search import strip_diacritics
 from services.tcgdex_languages import (
     DEFAULT_TCGDEX_SYNC_LANGUAGES,
     is_supported_tcgdex_language,
@@ -11,6 +15,9 @@ from services.tcgdex_languages import (
 from services.digital_sets import is_digital_set_data
 
 TCGDEX_BASE = "https://api.tcgdex.net/v2"
+_POKEMON_CATEGORY_VALUES = {"pokemon", "pokémon"}
+_NAME_SUFFIX_TOKENS = {"ex", "gx", "v", "vmax", "vstar"}
+_MEGA_FORM_TOKENS = {"x", "y"}
 
 
 def _safe_int(val) -> int:
@@ -327,6 +334,169 @@ def strip_lang_suffix(card_db_id: str) -> tuple:
     return _strip_lang_suffix(card_db_id)
 
 
+def extract_dex_ids(card_data: Dict) -> list[int] | None:
+    """Normalize TCGdex ``dexId`` into a unique list of positive integers."""
+    raw = card_data.get("dexId")
+    if raw is None:
+        raw = card_data.get("dex_ids")
+    if raw is None:
+        return None
+    if not isinstance(raw, list):
+        raw = [raw]
+    result: list[int] = []
+    for value in raw:
+        try:
+            dex_id = int(value)
+        except (TypeError, ValueError):
+            continue
+        if dex_id > 0 and dex_id not in result:
+            result.append(dex_id)
+    return result or None
+
+
+def _normalized_species_name(value: str | None) -> str:
+    normalized = strip_diacritics(value)
+    normalized = normalized.replace("♀", " f ").replace("♂", " m ")
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
+    return " ".join(normalized.split())
+
+
+@lru_cache(maxsize=1)
+def _pokedex_name_index() -> dict[str, int]:
+    result: dict[str, int] = {}
+    for entry in load_pokedex():
+        dex_id = int(entry["dex_id"])
+        for key in ("name_en", "name_de"):
+            name = _normalized_species_name(entry.get(key))
+            if name:
+                result.setdefault(name, dex_id)
+    return result
+
+
+def _species_name_candidates(card_name: str | None) -> list[str]:
+    normalized = _normalized_species_name(card_name)
+    if not normalized:
+        return []
+
+    candidates = [normalized]
+    tokens = normalized.split()
+    had_mega_prefix = bool(tokens and tokens[0] in {"mega", "m"})
+    if had_mega_prefix:
+        tokens = tokens[1:]
+        if tokens:
+            candidates.append(" ".join(tokens))
+    if tokens and tokens[-1] in _NAME_SUFFIX_TOKENS:
+        tokens = tokens[:-1]
+        if tokens:
+            candidates.append(" ".join(tokens))
+    if had_mega_prefix and tokens and tokens[-1] in _MEGA_FORM_TOKENS:
+        tokens = tokens[:-1]
+        if tokens:
+            candidates.append(" ".join(tokens))
+
+    result = []
+    for candidate in candidates:
+        if candidate and candidate not in result:
+            result.append(candidate)
+    return result
+
+
+def infer_dex_ids_from_name(card_data: Dict) -> list[int] | None:
+    """Infer base species when full TCGdex Pokémon details omit ``dexId``."""
+    category = str(card_data.get("category") or "").strip().casefold()
+    if category not in _POKEMON_CATEGORY_VALUES:
+        return None
+
+    name_index = _pokedex_name_index()
+    for candidate in _species_name_candidates(card_data.get("name")):
+        dex_id = name_index.get(candidate)
+        if dex_id:
+            return [dex_id]
+    return None
+
+
+def _product_id(value) -> int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, dict):
+        for key in ("idProduct", "productId", "product_id", "id"):
+            if key in value:
+                return _product_id(value.get(key))
+        return None
+    try:
+        product_id = int(value)
+    except (TypeError, ValueError):
+        return None
+    return product_id if product_id > 0 else None
+
+
+def extract_cardmarket_products(card_data: Dict) -> list[dict] | None:
+    """Return variant-aware Cardmarket product mappings from TCGdex data.
+
+    TCGdex historically represented ``variants`` as a boolean object and now
+    also exposes richer variant entries in its source data. This parser accepts
+    both without treating Cardmarket price values as product identifiers.
+    """
+    products: list[dict] = []
+
+    def add(product, variant=None, foil=None):
+        product_id = _product_id(product)
+        if not product_id:
+            return
+        row = {
+            "variant": str(variant) if variant not in (None, "") else None,
+            "foil": str(foil) if foil not in (None, "") else None,
+            "product_id": product_id,
+        }
+        if row not in products:
+            products.append(row)
+
+    variants = card_data.get("variants")
+    if isinstance(variants, list):
+        for entry in variants:
+            if not isinstance(entry, dict):
+                continue
+            third_party = entry.get("thirdParty") or entry.get("third_party") or {}
+            add(
+                third_party.get("cardmarket") if isinstance(third_party, dict) else None,
+                entry.get("type") or entry.get("variant") or entry.get("name"),
+                entry.get("foil") or entry.get("finish"),
+            )
+    elif isinstance(variants, dict):
+        # Some database exports use variant-name keys with nested metadata.
+        for variant_name, entry in variants.items():
+            if not isinstance(entry, dict):
+                continue
+            third_party = entry.get("thirdParty") or entry.get("third_party") or {}
+            add(
+                third_party.get("cardmarket") if isinstance(third_party, dict) else None,
+                entry.get("type") or variant_name,
+                entry.get("foil") or entry.get("finish"),
+            )
+
+    third_party = card_data.get("thirdParty") or card_data.get("third_party") or {}
+    if isinstance(third_party, dict):
+        value = third_party.get("cardmarket")
+        if isinstance(value, list):
+            for entry in value:
+                if isinstance(entry, dict):
+                    add(entry, entry.get("type") or entry.get("variant"), entry.get("foil"))
+                else:
+                    add(entry)
+        else:
+            add(value)
+
+    # Forward-compatible support if the public API adds the catalogue ID to
+    # the pricing object alongside prices.
+    pricing = card_data.get("pricing") or {}
+    cardmarket = pricing.get("cardmarket") if isinstance(pricing, dict) else None
+    if isinstance(cardmarket, dict):
+        add(cardmarket.get("idProduct") or cardmarket.get("productId"))
+
+    products.sort(key=lambda row: (row["product_id"], row.get("variant") or "", row.get("foil") or ""))
+    return products or None
+
+
 def parse_card_for_db(card_data: Dict, default_set_id: Optional[str] = None, lang: Optional[str] = None) -> Dict:
     """Parse TCGdex card data into database-ready format.
 
@@ -355,7 +525,24 @@ def parse_card_for_db(card_data: Dict, default_set_id: Optional[str] = None, lan
     tcgdex_id = card_data.get("id", "")
     db_id = f"{tcgdex_id}_{card_lang}"
 
-    variants = card_data.get("variants") or {}
+    raw_variants = card_data.get("variants") or {}
+    variants = raw_variants if isinstance(raw_variants, dict) else {}
+    is_full_detail = "category" in card_data
+    dex_ids = extract_dex_ids(card_data)
+    if dex_ids is None and is_full_detail:
+        dex_ids = infer_dex_ids_from_name(card_data)
+    cardmarket_products = extract_cardmarket_products(card_data)
+    # NULL means a brief set-list row still needs enrichment. An empty list
+    # means a full TCGdex card response was checked and no mapping exists.
+    if is_full_detail and dex_ids is None:
+        dex_ids = []
+    if is_full_detail and cardmarket_products is None:
+        cardmarket_products = []
+    variant_types = {
+        str(entry.get("type") or "").replace("_", "").replace("-", "").lower()
+        for entry in raw_variants
+        if isinstance(raw_variants, list) and isinstance(entry, dict)
+    }
     retreat_raw = card_data.get("retreat")
     try:
         retreat = int(retreat_raw) if retreat_raw is not None else None
@@ -404,12 +591,14 @@ def parse_card_for_db(card_data: Dict, default_set_id: Optional[str] = None, lan
         "abilities": card_data.get("abilities"),
         "weaknesses": card_data.get("weaknesses"),
         "resistances": card_data.get("resistances"),
+        "dex_ids": dex_ids,
+        "cardmarket_products": cardmarket_products,
         "retreat": retreat,
         "playable_fingerprint": playable_fingerprint(card_data),
-        "variants_normal": variants.get("normal"),
-        "variants_reverse": variants.get("reverse"),
-        "variants_holo": variants.get("holo"),
-        "variants_first_edition": variants.get("firstEdition"),
+        "variants_normal": variants.get("normal") if variants else ("normal" in variant_types or None),
+        "variants_reverse": variants.get("reverse") if variants else ("reverse" in variant_types or None),
+        "variants_holo": variants.get("holo") if variants else ("holo" in variant_types or None),
+        "variants_first_edition": variants.get("firstEdition") if variants else ("firstedition" in variant_types or None),
         "price_source_lang": None,
         **prices,
     }

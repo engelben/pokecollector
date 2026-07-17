@@ -8,7 +8,7 @@ PRICE_PRIMARY_TO_FIELD = {
     "avg30": "price_avg30",
     "low": "price_low",
 }
-HOLO_VARIANTS = {"Holo", "Holo Rare", "Holo V", "Holo VMAX", "Holo VSTAR", "Holo ex", "Reverse Holo"}
+REVERSE_HOLO_VARIANTS = {"Reverse Holo"}
 HOLO_FIELD_MAP = {
     "price_market": "price_market_holo",
     "price_trend": "price_trend_holo",
@@ -41,14 +41,16 @@ def _positive_price(value) -> float | None:
 def effective_market_price(card, variant=None, price_field: str | None = "price_trend") -> float:
     """Return the selected Cardmarket EUR price for a card.
 
-    TCGdex/Cardmarket may report unavailable holo prices as 0 instead of null.
-    Treat those zero values as missing so holo variants can fall back to the
-    selected base price, then Cardmarket average, instead of being valued at €0.
+    TCGdex/Cardmarket may report unavailable reverse-holo prices as 0 instead of null.
+    The ``*-holo`` price fields represent Cardmarket's alternate/reverse listing,
+    not every card whose printed finish is Holo. Treat zero values as missing so
+    Reverse Holo can fall back to the selected base price instead of being valued
+    at €0.
     """
     if not card:
         return 0
     field = normalize_price_field(price_field)
-    if variant in HOLO_VARIANTS:
+    if variant in REVERSE_HOLO_VARIANTS:
         holo_field = HOLO_FIELD_MAP.get(field)
         for candidate in (
             getattr(card, holo_field, None) if holo_field else None,
