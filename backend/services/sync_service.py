@@ -502,8 +502,32 @@ def check_custom_card_matches(db: Session):
             logger.warning(f"Failed to check API match for custom card {card.id}: {e}")
 
 
+# A full sync takes ~20 min. A "running" full-sync row older than this is
+# treated as orphaned (left by a crash or container restart) so a stale row can
+# never block future syncs forever.
+FULL_SYNC_STALE_AFTER = datetime.timedelta(minutes=60)
+
+
+def _full_sync_in_progress(db: Session) -> bool:
+    """True if another full sync is actively running.
+
+    Guards against two overlapping full syncs racing and colliding on card
+    primary keys. Works across processes and callers (scheduler, API, manual)
+    because it checks the shared sync_log table rather than an in-process flag.
+    """
+    cutoff = datetime.datetime.utcnow() - FULL_SYNC_STALE_AFTER
+    return db.query(SyncLog.id).filter(
+        SyncLog.sync_type == "full",
+        SyncLog.status == "running",
+        SyncLog.started_at >= cutoff,
+    ).first() is not None
+
+
 def perform_full_sync(db: Session) -> dict:
     """Perform a full sync cycle: sets + cards + prices."""
+    if _full_sync_in_progress(db):
+        logger.info("Full sync skipped: another full sync is already running")
+        return {"cards_updated": 0, "sets_updated": 0, "status": "skipped"}
     log = SyncLog(started_at=datetime.datetime.utcnow(), status="running", sync_type="full")
     db.add(log)
     db.commit()
