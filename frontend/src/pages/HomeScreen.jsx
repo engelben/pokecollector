@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  RefreshCw, TrendingUp, TrendingDown, Layers, Star, Wallet, LogOut,
+  RefreshCw, TrendingUp, TrendingDown, Layers, Star, Wallet,
   Search, Library, Grid2X2, BarChart3, Settings, Trophy, ArrowRightLeft, ListOrdered,
 } from 'lucide-react'
 import {
@@ -17,6 +17,7 @@ import { useTilt } from '../hooks/useTilt'
 import { resolveCardImageUrl } from '../utils/imageUrl'
 import { collectionItemTargetUrl } from '../utils/navigation'
 import CardImage from '../components/CardImage'
+import CollectorProfileMenu from '../components/CollectorProfileMenu'
 
 // Compact number formatter for mobile (1.2k, 3.4M, etc.)
 function compactNum(n) {
@@ -70,7 +71,7 @@ export default function HomeScreen() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { formatPrice, t, pricePrimaryField } = useSettings()
-  const { user, logout, multiUser } = useAuth()
+  const { user, multiUser } = useAuth()
   const [chartPeriod, setChartPeriod] = useState('1W')
 
   const { data, isLoading } = useQuery({
@@ -202,18 +203,7 @@ export default function HomeScreen() {
 
         {/* ── TOP BAR: Logout + Sync ── */}
         <div className="flex items-center justify-between">
-          {multiUser ? (
-            <button
-              onClick={() => { logout(); navigate('/login') }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-text-muted hover:text-brand-red transition-colors"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
-            >
-              <LogOut size={12} />
-              {t('auth.logout')}
-            </button>
-          ) : (
-            <div />
-          )}
+          <CollectorProfileMenu />
           {user?.role === 'admin' && (
           <button
             onClick={() => syncMutation.mutate()}

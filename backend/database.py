@@ -200,6 +200,14 @@ def _run_migrations(conn):
         "ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)",
         "ALTER TABLE portfolio_snapshots ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT false",
+        # v53: Managed collector profiles share one login while keeping separate user-scoped data.
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS managed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS login_enabled BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_pin_hash VARCHAR",
+        "UPDATE users SET login_enabled = TRUE WHERE login_enabled IS NULL",
+        "ALTER TABLE users ALTER COLUMN login_enabled SET DEFAULT TRUE",
+        "ALTER TABLE users ALTER COLUMN login_enabled SET NOT NULL",
+        "CREATE INDEX IF NOT EXISTS idx_users_managed_by ON users(managed_by_user_id)",
         # v43: Track when card prices/images/data are copied from another language.
         "ALTER TABLE cards ADD COLUMN IF NOT EXISTS price_source_lang VARCHAR",
         "ALTER TABLE cards ADD COLUMN IF NOT EXISTS image_source_lang VARCHAR",
