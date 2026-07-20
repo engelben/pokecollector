@@ -71,7 +71,7 @@ export default function HomeScreen() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { formatPrice, t, pricePrimaryField } = useSettings()
-  const { user, multiUser } = useAuth()
+  const { user, hasMultipleCollectors } = useAuth()
   const [chartPeriod, setChartPeriod] = useState('1W')
 
   const { data, isLoading } = useQuery({
@@ -155,7 +155,7 @@ export default function HomeScreen() {
     { to: '/pokedex',    icon: ListOrdered, label: t('nav.pokedex'),    color: '#ffb74d' },
     { to: '/analytics',  icon: BarChart3,  label: t('nav.analytics'),   color: '#f5c842' },
     { to: '/trades',     icon: ArrowRightLeft, label: t('nav.trades'),   color: '#ff8a65' },
-    ...(multiUser ? [{ to: '/leaderboard', icon: Trophy, label: t('nav.leaderboard'), color: '#ffd54f' }] : []),
+    ...(hasMultipleCollectors ? [{ to: '/leaderboard', icon: Trophy, label: t('nav.leaderboard'), color: '#ffd54f' }] : []),
     { to: '/settings',   icon: Settings,   label: t('nav.settings'),    color: '#b0bec5' },
   ]
 

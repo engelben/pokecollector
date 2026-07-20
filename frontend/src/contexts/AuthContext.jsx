@@ -36,6 +36,7 @@ export function AuthProvider({ children }) {
   const [profiles, setProfiles] = useState([])
   const [actorUserId, setActorUserId] = useState(null)
   const [profilesLoading, setProfilesLoading] = useState(false)
+  const hasMultipleCollectors = multiUser || profiles.filter(profile => profile.is_active).length > 1
 
   const refreshProfiles = useCallback(async () => {
     setProfilesLoading(true)
@@ -170,6 +171,7 @@ export function AuthProvider({ children }) {
     user,
     loading,
     multiUser,
+    hasMultipleCollectors,
     loginUser,
     updateCurrentUser,
     logout,
