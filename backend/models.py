@@ -190,6 +190,104 @@ class WishlistItem(Base):
     )
 
 
+class BudgetAccount(Base):
+    __tablename__ = "budget_accounts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    currency = Column(String, nullable=False, default="EUR")
+    weekly_credit_cents = Column(Integer, nullable=False, default=500)
+    next_credit_date = Column(Date, nullable=True)
+    credit_enabled = Column(Boolean, nullable=False, default=True)
+    season_end_date = Column(Date, nullable=True)
+    source_wishlist_ids = Column(JSON, nullable=False, default=list)
+    parent_covers_shipping = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    ledger_entries = relationship("BudgetLedgerEntry", back_populates="account", cascade="all, delete-orphan")
+    purchase_plans = relationship("BudgetPurchasePlan", back_populates="account", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        CheckConstraint("weekly_credit_cents >= 0", name="ck_budget_weekly_credit_nonnegative"),
+    )
+
+
+class BudgetPurchasePlan(Base):
+    __tablename__ = "budget_purchase_plans"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    account_id = Column(Integer, ForeignKey("budget_accounts.id", ondelete="CASCADE"), nullable=False)
+    status = Column(String, nullable=False, default="draft")
+    estimated_card_total_cents = Column(Integer, nullable=False, default=0)
+    actual_card_total_cents = Column(Integer, nullable=True)
+    shipping_cents = Column(Integer, nullable=False, default=0)
+    charge_shipping_to_wallet = Column(Boolean, nullable=False, default=False)
+    created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=func.now())
+    confirmed_at = Column(DateTime, nullable=True)
+    cancelled_at = Column(DateTime, nullable=True)
+
+    account = relationship("BudgetAccount", back_populates="purchase_plans")
+    items = relationship("BudgetPurchasePlanItem", back_populates="purchase_plan", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        CheckConstraint("status IN ('draft', 'pending_approval', 'confirmed', 'cancelled')", name="ck_budget_plan_status"),
+        CheckConstraint("estimated_card_total_cents >= 0", name="ck_budget_plan_estimated_nonnegative"),
+        CheckConstraint("actual_card_total_cents IS NULL OR actual_card_total_cents >= 0", name="ck_budget_plan_actual_nonnegative"),
+        CheckConstraint("shipping_cents >= 0", name="ck_budget_plan_shipping_nonnegative"),
+    )
+
+
+class BudgetLedgerEntry(Base):
+    __tablename__ = "budget_ledger_entries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    account_id = Column(Integer, ForeignKey("budget_accounts.id", ondelete="CASCADE"), nullable=False)
+    amount_cents = Column(Integer, nullable=False)
+    entry_type = Column(String, nullable=False)
+    effective_date = Column(Date, nullable=False)
+    created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    purchase_plan_id = Column(Integer, ForeignKey("budget_purchase_plans.id", ondelete="SET NULL"), nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=func.now())
+
+    account = relationship("BudgetAccount", back_populates="ledger_entries")
+
+    __table_args__ = (
+        CheckConstraint(
+            "entry_type IN ('weekly_allowance', 'parent_adjustment', 'gift', 'purchase', 'refund', 'correction')",
+            name="ck_budget_ledger_type",
+        ),
+    )
+
+
+class BudgetPurchasePlanItem(Base):
+    __tablename__ = "budget_purchase_plan_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    purchase_plan_id = Column(Integer, ForeignKey("budget_purchase_plans.id", ondelete="CASCADE"), nullable=False)
+    wishlist_item_id = Column(Integer, nullable=True)
+    card_id = Column(String, ForeignKey("cards.id", ondelete="SET NULL"), nullable=True)
+    quantity = Column(Integer, nullable=False, default=1)
+    estimated_unit_price_cents = Column(Integer, nullable=False, default=0)
+    actual_unit_price_cents = Column(Integer, nullable=True)
+    purchase_rule_snapshot = Column(String, nullable=False, default="purchase_allowed")
+    card_name_snapshot = Column(String, nullable=False)
+    set_name_snapshot = Column(String, nullable=True)
+    cardmarket_url_snapshot = Column(String, nullable=True)
+
+    purchase_plan = relationship("BudgetPurchasePlan", back_populates="items")
+
+    __table_args__ = (
+        CheckConstraint("quantity >= 1", name="ck_budget_plan_item_quantity"),
+        CheckConstraint("estimated_unit_price_cents >= 0", name="ck_budget_plan_item_estimated_nonnegative"),
+        CheckConstraint("actual_unit_price_cents IS NULL OR actual_unit_price_cents >= 0", name="ck_budget_plan_item_actual_nonnegative"),
+    )
+
+
 class PriceHistory(Base):
     __tablename__ = "price_history"
 

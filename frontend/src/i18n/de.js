@@ -9,6 +9,7 @@ const de = {
     pokedex: 'Pokédex',
     sets: 'Sets',
     wishlist: 'Wunschliste',
+    wallet: 'Taschengeld',
     binders: 'Binder',
     analytics: 'Analyse',
     leaderboard: 'Rangliste',

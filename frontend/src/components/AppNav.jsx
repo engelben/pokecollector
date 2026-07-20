@@ -10,6 +10,7 @@ const PAGE_TITLE_KEYS = {
   '/analytics':  'nav.analytics',
   '/binders':    'nav.binders',
   '/wishlist':   'nav.wishlist',
+  '/wallet':     'nav.wallet',
   '/products':   'nav.products',
   '/trades':     'nav.trades',
   '/leaderboard': 'nav.leaderboard',

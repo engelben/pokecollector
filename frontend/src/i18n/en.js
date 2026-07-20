@@ -9,6 +9,7 @@ const en = {
     pokedex: 'Pokédex',
     sets: 'Sets',
     wishlist: 'Wishlist',
+    wallet: 'Allowance wallet',
     binders: 'Binders',
     analytics: 'Analytics',
     leaderboard: 'Leaderboard',

@@ -16,6 +16,7 @@ import CardImage from '../components/CardImage'
 import { resolveCardImageUrl } from '../utils/imageUrl'
 import { collectionItemTargetUrl } from '../utils/navigation'
 import AnalyticsSectionNav from '../components/AnalyticsSectionNav'
+import BudgetDashboardCard from '../components/BudgetDashboardCard'
 
 const CustomTooltip = ({ active, payload, label }) => {
   const { formatPrice } = useSettings()
@@ -127,6 +128,8 @@ export default function Dashboard() {
           gainLoss={pnl}
         />
       )}
+
+      <BudgetDashboardCard />
 
       {/* ─── 2. RECENTLY ADDED CAROUSEL ────────────────────────────── */}
       {data?.recent_additions?.length > 0 && (

@@ -95,5 +95,13 @@ def delete_user_owned_data(db: Session, user_id: int) -> None:
     db.query(PortfolioSnapshot).filter(PortfolioSnapshot.user_id == user_id).delete(synchronize_session=False)
     db.query(UserSetting).filter(UserSetting.user_id == user_id).delete(synchronize_session=False)
 
+    if bind is not None and inspect(bind).has_table("budget_accounts"):
+        account_ids = db.execute(text("SELECT id FROM budget_accounts WHERE user_id = :user_id"), {"user_id": user_id}).scalars().all()
+        if account_ids:
+            db.execute(text("DELETE FROM budget_purchase_plan_items WHERE purchase_plan_id IN (SELECT id FROM budget_purchase_plans WHERE account_id = ANY(:account_ids))"), {"account_ids": account_ids})
+            db.execute(text("DELETE FROM budget_ledger_entries WHERE account_id = ANY(:account_ids)"), {"account_ids": account_ids})
+            db.execute(text("DELETE FROM budget_purchase_plans WHERE account_id = ANY(:account_ids)"), {"account_ids": account_ids})
+            db.execute(text("DELETE FROM budget_accounts WHERE id = ANY(:account_ids)"), {"account_ids": account_ids})
+
     if has_photo_imports:
         db.execute(text("DELETE FROM photo_import_sessions WHERE user_id = :user_id"), {"user_id": user_id})
