@@ -133,9 +133,16 @@ export const markSetsSeen = (setIds) => api.post('/sets/mark-seen', Array.isArra
 
 // Wishlist
 export const getWishlist = () => api.get('/wishlist/')
+export const getWishlists = () => api.get('/wishlist/lists').then(r => r.data)
+export const createWishlist = (data) => api.post('/wishlist/lists', data).then(r => r.data)
+export const updateWishlist = (id, data) => api.put(`/wishlist/lists/${id}`, data).then(r => r.data)
+export const deleteWishlist = (id) => api.delete(`/wishlist/lists/${id}`).then(r => r.data)
+export const getWishlistItems = (wishlistId) => api.get(`/wishlist/lists/${wishlistId}/items`).then(r => r.data)
 export const addToWishlist = (data) => api.post('/wishlist/', data)
 export const updateWishlistItem = (id, data) => api.put(`/wishlist/${id}`, data)
+export const transferWishlistItem = (id, targetWishlistId, copy = false) => api.post(`/wishlist/${id}/transfer`, { target_wishlist_id: targetWishlistId, copy }).then(r => r.data)
 export const removeFromWishlist = (id) => api.delete(`/wishlist/${id}`)
+export const exportWishlist = (wishlistId, format = 'csv') => api.get(`/wishlist/lists/${wishlistId}/export.${format}`, { responseType: 'blob' }).then(r => r.data)
 
 // National Pokédex
 export const getPokedex = (params = {}) => api.get('/pokedex', { params }).then(r => r.data)
