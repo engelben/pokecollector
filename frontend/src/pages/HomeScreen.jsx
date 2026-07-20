@@ -201,9 +201,8 @@ export default function HomeScreen() {
 
       <div className="relative z-10 flex flex-col gap-6 px-4 pt-6 pb-10">
 
-        {/* ── TOP BAR: Logout + Sync ── */}
-        <div className="flex items-center justify-between">
-          <CollectorProfileMenu />
+        {/* ── TOP BAR: Sync + collector profile ── */}
+        <div className="flex items-center justify-end gap-2">
           {user?.role === 'admin' && (
           <button
             onClick={() => syncMutation.mutate()}
@@ -219,6 +218,7 @@ export default function HomeScreen() {
             {isRunning ? t('home.syncing') : t('home.sync')}
           </button>
           )}
+          <CollectorProfileMenu />
         </div>
 
         {/* ── PORTFOLIO VALUE (large, prominent) ── */}

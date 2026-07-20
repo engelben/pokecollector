@@ -89,7 +89,7 @@ export default function CollectorProfileMenu({ compact = false }) {
         </button>
 
         {open && (
-          <div className="absolute right-0 top-full z-[80] mt-2 w-72 overflow-hidden rounded-2xl border border-border bg-bg-surface shadow-2xl">
+          <div className="absolute right-0 top-full z-[80] mt-2 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-border bg-bg-surface shadow-2xl">
             <div className="border-b border-border px-4 py-3">
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-text-muted">{t('collectorProfiles.collectingAs')}</p>
               <div className="mt-1 flex items-center gap-2">
