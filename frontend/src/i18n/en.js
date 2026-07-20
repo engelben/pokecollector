@@ -43,6 +43,8 @@ const en = {
     sortBy: 'Sort cards',
     sortPriceAsc: 'Price: low to high',
     sortPriceDesc: 'Price: high to low',
+    sortLowToHigh: 'low to high',
+    sortHighToLow: 'high to low',
     sortOwnedFirst: 'Owned first',
     sortWishlistFirst: 'Wishlist first',
     sortSetNumber: 'Set and card number',
