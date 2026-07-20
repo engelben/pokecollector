@@ -378,6 +378,18 @@ const en = {
 
   // Wishlist
   wishlist: {
+    lists: 'Wishlists',
+    newList: 'New wishlist',
+    editList: 'Edit wishlist',
+    cardmarketExport: 'Cardmarket export',
+    csvExport: 'CSV export',
+    purchaseAllowed: 'Purchase allowed',
+    openOrTradeOnly: 'Open or trade only',
+    seasonEndPurchase: 'Season-end purchase',
+    parentApprovalRequired: 'Parent approval required',
+    purposeLabels: 'Collection purpose',
+    desiredVariant: 'Desired variant',
+    desiredCondition: 'Minimum condition',
     title: 'Wishlist',
     subtitle: 'Cards you want · Set price alerts for Telegram notifications',
     empty: 'Your wishlist is empty',

@@ -14,6 +14,7 @@ from services.card_fallbacks import apply_cross_language_fallbacks
 from services.card_upsert import upsert_card
 from services.card_values import effective_market_price, normalize_price_field
 from services.card_visibility import visible_card_filter
+from services.wishlists import ensure_default_wishlist
 from services.binder_csv import BINDER_CSV_DUPLICATE_QUANTITY_ERROR, combine_binder_required_quantity
 from services.wishlist_missing import plan_missing_wishlist_additions
 from services.tcgdex_languages import SUPPORTED_TCGDEX_LANGUAGES, is_supported_tcgdex_language, normalize_tcgdex_language
@@ -135,13 +136,15 @@ def _user_wishlist_quantities(db: Session, current_user: User, card_ids: list[st
 
 
 def _apply_wishlist_additions(db: Session, current_user: User, additions) -> tuple[int, int]:
-    """Insert or increment global wishlist rows. Returns touched rows and copies."""
+    """Insert or increment the user's default wishlist. Returns touched rows and copies."""
+    default_wishlist = ensure_default_wishlist(db, current_user.id, commit=False)
     touched = 0
     added_copies = 0
     for addition in additions:
         existing = db.query(WishlistItem).filter(
             WishlistItem.card_id == addition.card_id,
             WishlistItem.user_id == current_user.id,
+            WishlistItem.wishlist_id == default_wishlist.id,
         ).first()
         if existing:
             current_quantity = max(int(existing.quantity or 1), 1)
@@ -155,6 +158,7 @@ def _apply_wishlist_additions(db: Session, current_user: User, additions) -> tup
             if actual_added <= 0:
                 continue
             db.add(WishlistItem(
+                wishlist_id=default_wishlist.id,
                 card_id=addition.card_id,
                 quantity=actual_added,
                 user_id=current_user.id,
@@ -1202,9 +1206,11 @@ def add_binder_entry_to_wishlist(
             }
     else:
         requested_quantity = _safe_required_quantity(quantity) if quantity is not None else 1
+        default_wishlist = ensure_default_wishlist(db, current_user.id, commit=False)
         existing = db.query(WishlistItem).filter(
             WishlistItem.card_id == bc.card_id,
             WishlistItem.user_id == current_user.id,
+            WishlistItem.wishlist_id == default_wishlist.id,
         ).first()
         if existing:
             current_quantity = max(int(existing.quantity or 1), 1)
@@ -1242,6 +1248,7 @@ def add_binder_entry_to_wishlist(
             added, added_copies = _apply_wishlist_additions(db, current_user, plan.additions)
         else:
             db.add(WishlistItem(
+                wishlist_id=default_wishlist.id,
                 card_id=bc.card_id,
                 quantity=requested_quantity,
                 user_id=current_user.id,

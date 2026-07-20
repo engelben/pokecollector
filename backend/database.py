@@ -375,6 +375,51 @@ def _run_migrations(conn):
                  AND sets.tcg_set_id = cards.set_id
                  AND sets.lang = cards.lang
              )""",
+        # v53: Named wishlists with acquisition metadata and Cardmarket export support.
+        """CREATE TABLE IF NOT EXISTS wishlists (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name VARCHAR NOT NULL,
+            description TEXT,
+            is_default BOOLEAN NOT NULL DEFAULT FALSE,
+            is_archived BOOLEAN NOT NULL DEFAULT FALSE,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            color VARCHAR NOT NULL DEFAULT '#EE1515',
+            icon VARCHAR,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            CONSTRAINT uq_wishlists_user_name UNIQUE (user_id, name)
+        )""",
+        "ALTER TABLE wishlist ADD COLUMN IF NOT EXISTS wishlist_id INTEGER REFERENCES wishlists(id) ON DELETE CASCADE",
+        "ALTER TABLE wishlist ADD COLUMN IF NOT EXISTS desired_variant VARCHAR NOT NULL DEFAULT 'Any'",
+        "ALTER TABLE wishlist ADD COLUMN IF NOT EXISTS desired_condition VARCHAR NOT NULL DEFAULT 'Any'",
+        "ALTER TABLE wishlist ADD COLUMN IF NOT EXISTS priority INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE wishlist ADD COLUMN IF NOT EXISTS notes TEXT",
+        "ALTER TABLE wishlist ADD COLUMN IF NOT EXISTS purchase_rule VARCHAR NOT NULL DEFAULT 'purchase_allowed'",
+        "ALTER TABLE wishlist ADD COLUMN IF NOT EXISTS eligible_after DATE",
+        "ALTER TABLE wishlist ADD COLUMN IF NOT EXISTS purpose_labels JSON NOT NULL DEFAULT '[]'",
+        "ALTER TABLE wishlist ADD COLUMN IF NOT EXISTS cardmarket_url VARCHAR",
+        "ALTER TABLE wishlist ADD COLUMN IF NOT EXISTS cardmarket_product_id INTEGER",
+        "ALTER TABLE wishlist ADD COLUMN IF NOT EXISTS cardmarket_url_source VARCHAR",
+        "ALTER TABLE wishlist ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()",
+        """INSERT INTO wishlists (user_id, name, is_default, sort_order)
+           SELECT users.id, 'Wishlist', TRUE, 0
+           FROM users
+           WHERE NOT EXISTS (
+               SELECT 1 FROM wishlists WHERE wishlists.user_id = users.id AND wishlists.is_default = TRUE
+           )""",
+        """UPDATE wishlist
+           SET wishlist_id = wishlists.id
+           FROM wishlists
+           WHERE wishlist.wishlist_id IS NULL
+             AND wishlist.user_id = wishlists.user_id
+             AND wishlists.is_default = TRUE""",
+        "ALTER TABLE wishlist DROP CONSTRAINT IF EXISTS uq_wishlist_user_card",
+        "DROP INDEX IF EXISTS uq_wishlist_user_card",
+        "CREATE INDEX IF NOT EXISTS idx_wishlists_user_order ON wishlists(user_id, is_archived, sort_order, id)",
+        "CREATE INDEX IF NOT EXISTS idx_wishlist_list_created ON wishlist(wishlist_id, created_at DESC, id DESC)",
+        """CREATE UNIQUE INDEX IF NOT EXISTS uq_wishlist_list_card_target
+           ON wishlist(wishlist_id, card_id, COALESCE(desired_variant, ''), COALESCE(desired_condition, ''))""",
     ]
     for stmt in migrations:
         try:

@@ -160,23 +160,62 @@ class CollectionItem(Base):
     card = relationship("Card", back_populates="collection_items")
 
 
+class Wishlist(Base):
+    __tablename__ = "wishlists"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    is_default = Column(Boolean, nullable=False, default=False)
+    is_archived = Column(Boolean, nullable=False, default=False)
+    sort_order = Column(Integer, nullable=False, default=0)
+    color = Column(String, nullable=False, default="#EE1515")
+    icon = Column(String, nullable=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    items = relationship("WishlistItem", back_populates="wishlist", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "name", name="uq_wishlists_user_name"),
+    )
+
+
 class WishlistItem(Base):
     __tablename__ = "wishlist"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    wishlist_id = Column(Integer, ForeignKey("wishlists.id", ondelete="CASCADE"), nullable=True)
     card_id = Column(String, ForeignKey("cards.id", ondelete="SET NULL"), nullable=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     quantity = Column(Integer, default=1, nullable=False)
+    desired_variant = Column(String, nullable=False, default="Any")
+    desired_condition = Column(String, nullable=False, default="Any")
+    priority = Column(Integer, nullable=False, default=0)
+    notes = Column(Text, nullable=True)
+    purchase_rule = Column(String, nullable=False, default="purchase_allowed")
+    eligible_after = Column(Date, nullable=True)
+    purpose_labels = Column(JSON, nullable=False, default=list)
+    cardmarket_url = Column(String, nullable=True)
+    cardmarket_product_id = Column(Integer, nullable=True)
+    cardmarket_url_source = Column(String, nullable=True)
     price_alert_above = Column(Float)
     price_alert_below = Column(Float)
     notified_at = Column(DateTime)
     created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
+    wishlist = relationship("Wishlist", back_populates="items")
     card = relationship("Card", back_populates="wishlist_items")
 
     __table_args__ = (
         CheckConstraint("quantity >= 1 AND quantity <= 99", name="ck_wishlist_quantity_range"),
-        UniqueConstraint("user_id", "card_id", name="uq_wishlist_user_card"),
+        CheckConstraint("priority >= 0 AND priority <= 5", name="ck_wishlist_priority_range"),
+        CheckConstraint(
+            "purchase_rule IN ('purchase_allowed', 'open_or_trade_only', 'season_end_purchase', 'parent_approval_required')",
+            name="ck_wishlist_purchase_rule",
+        ),
     )
 
 

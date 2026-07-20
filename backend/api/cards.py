@@ -700,16 +700,26 @@ def migrate_custom_card(
                 item.lang = custom_lang
         db.flush()
 
-    # 3. Re-assign wishlist items, preserving the per-user uniqueness model.
+    # 3. Re-assign wishlist items, preserving list and acquisition-target identity.
     custom_wishlist_items = db.query(WishlistItem).filter(
         WishlistItem.card_id == custom_card_id
     ).all()
     existing_wishlist_items = db.query(WishlistItem).filter(
         WishlistItem.card_id == composite_api_card_id
     ).all()
-    existing_wishlist_by_user = {item.user_id: item for item in existing_wishlist_items}
+
+    def wishlist_identity(item):
+        return (
+            item.user_id,
+            item.wishlist_id,
+            item.desired_variant or "Any",
+            item.desired_condition or "Any",
+        )
+
+    existing_wishlist_by_target = {wishlist_identity(item): item for item in existing_wishlist_items}
     for custom_wishlist in custom_wishlist_items:
-        existing_wishlist = existing_wishlist_by_user.get(custom_wishlist.user_id)
+        key = wishlist_identity(custom_wishlist)
+        existing_wishlist = existing_wishlist_by_target.get(key)
         if existing_wishlist:
             existing_wishlist.quantity = min(99, max(int(existing_wishlist.quantity or 1), 1) + max(int(custom_wishlist.quantity or 1), 1))
             if existing_wishlist.price_alert_above is None:
@@ -718,10 +728,12 @@ def migrate_custom_card(
                 existing_wishlist.price_alert_below = custom_wishlist.price_alert_below
             if existing_wishlist.notified_at is None:
                 existing_wishlist.notified_at = custom_wishlist.notified_at
+            if not existing_wishlist.notes:
+                existing_wishlist.notes = custom_wishlist.notes
             db.delete(custom_wishlist)
         else:
             custom_wishlist.card_id = composite_api_card_id
-            existing_wishlist_by_user[custom_wishlist.user_id] = custom_wishlist
+            existing_wishlist_by_target[key] = custom_wishlist
     db.flush()
 
     # 4. Re-assign binder cards. If the API card is already present in the same

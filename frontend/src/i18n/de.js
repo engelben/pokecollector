@@ -378,6 +378,18 @@ const de = {
 
   // Wishlist
   wishlist: {
+    lists: 'Wunschlisten',
+    newList: 'Neue Wunschliste',
+    editList: 'Wunschliste bearbeiten',
+    cardmarketExport: 'Cardmarket-Export',
+    csvExport: 'CSV-Export',
+    purchaseAllowed: 'Kauf erlaubt',
+    openOrTradeOnly: 'Nur öffnen oder tauschen',
+    seasonEndPurchase: 'Kauf zum Saisonende',
+    parentApprovalRequired: 'Elternfreigabe erforderlich',
+    purposeLabels: 'Sammlungszweck',
+    desiredVariant: 'Gewünschte Variante',
+    desiredCondition: 'Mindestzustand',
     title: 'Wunschliste',
     subtitle: 'Gewünschte Karten · Preisalarme für Telegram-Benachrichtigungen',
     empty: 'Deine Wunschliste ist leer',
