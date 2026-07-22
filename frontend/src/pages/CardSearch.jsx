@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { Search, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, SortAsc, Hash, PenLine, SlidersHorizontal, Camera, CheckSquare, Plus, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -137,9 +138,11 @@ export default function CardSearch() {
   const { t, settings, loaded: settingsLoaded } = useSettings()
   const visibleLanguages = useVisibleTcgdexLanguages()
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const artistParam = searchParams.get('artist') || ''
   const [searchInput, setSearchInput] = useState('')
   const [filters, setFilters] = useState({
-    name: '', category: '', type: '', subtype: '', rarity: '', set_id: '', series: '', artist: '',
+    name: '', category: '', type: '', subtype: '', rarity: '', set_id: '', series: '', artist: artistParam,
     hp_min: '', hp_max: '', sort_by: '', sort_order: 'asc',
   })
   const [langFilter, setLangFilter] = useState('all')
@@ -228,6 +231,12 @@ export default function CardSearch() {
       }
       return next
     })
+    if (key === 'artist') {
+      const nextSearchParams = new URLSearchParams(searchParams)
+      if (value.trim()) nextSearchParams.set('artist', value)
+      else nextSearchParams.delete('artist')
+      setSearchParams(nextSearchParams, { replace: true })
+    }
     setPage(1)
   }
 
@@ -240,6 +249,9 @@ export default function CardSearch() {
     setFilters({ name: '', category: '', type: '', subtype: '', rarity: '', set_id: '', series: '', artist: '', hp_min: '', hp_max: '', sort_by: '', sort_order: 'asc' })
     setSearchInput('')
     setLangFilter(defaultLangFilter)
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.delete('artist')
+    setSearchParams(nextSearchParams, { replace: true })
     setPage(1)
   }
 
@@ -247,6 +259,11 @@ export default function CardSearch() {
   const activeFilterCount = [filters.category, filters.type, filters.subtype, filters.rarity, filters.set_id, filters.series, filters.artist, filters.hp_min, filters.hp_max, filters.sort_by].filter(Boolean).length
   const totalPages = data ? Math.ceil(data.total_count / pageSize) : 0
   const hasOpenOverlay = Boolean(selectedCard || showFilters || showCustomModal || showScanner)
+
+  useEffect(() => {
+    setFilters(prev => prev.artist === artistParam ? prev : { ...prev, artist: artistParam })
+    setPage(1)
+  }, [artistParam])
 
   useEffect(() => {
     if (!visibleLanguages.isLoading && langFilter !== 'all' && !visibleLanguageCodes.includes(langFilter)) {
