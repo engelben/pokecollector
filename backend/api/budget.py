@@ -52,8 +52,9 @@ class PurchasePlanCreate(BaseModel):
 
 
 class DraftCartItemWrite(BaseModel):
+    """Public cart writes are card-centric, regardless of their source view."""
     user_id: int | None = None
-    wishlist_item_id: int
+    card_id: str
     quantity: int = Field(default=1, ge=1, le=99)
 
 
@@ -409,103 +410,98 @@ def get_suggestions(user_id: int | None = Query(default=None), session: AuthSess
 
 
 def _cart_payload(db: Session, account: BudgetAccount) -> dict:
-    cart = db.query(BudgetDraftCart).options(joinedload(BudgetDraftCart.items)).filter(
-        BudgetDraftCart.account_id == account.id
-    ).first()
+    cart = db.query(BudgetDraftCart).options(joinedload(BudgetDraftCart.items)).filter(BudgetDraftCart.account_id == account.id).first()
+    balance = _balance(db, account.id)
     if not cart:
-        return {"id": None, "items": [], "item_count": 0, "estimated_total_cents": 0}
-    wishlist_ids = [item.wishlist_item_id for item in cart.items]
-    wishlist = {item.id: item for item in db.query(WishlistItem).options(
-        joinedload(WishlistItem.card).joinedload(Card.set_ref)
-    ).filter(WishlistItem.user_id == account.user_id, WishlistItem.id.in_(wishlist_ids)).all()}
-    rows, total = [], 0
-    for cart_item in cart.items:
-        wish = wishlist.get(cart_item.wishlist_item_id)
-        if not wish or not wish.card:  # Deleted wishlist rows cannot become purchases.
-            continue
-        unit = _price_cents(wish.card)
-        line_total = (unit or 0) * cart_item.quantity
-        total += line_total
-        rows.append({"id": cart_item.id, "wishlist_item_id": wish.id, "quantity": cart_item.quantity,
-                     "price_cents": unit, "line_total_cents": line_total, "card_id": wish.card.id,
-                     "name": wish.card.name, "set_name": wish.card.set_ref.name if wish.card.set_ref else wish.card.set_id,
-                     "image": wish.card.images_small or wish.card.images_large or wish.card.custom_image_url})
-    return {"id": cart.id, "items": rows, "item_count": sum(row["quantity"] for row in rows), "estimated_total_cents": total}
+        return {"id": None, "items": [], "item_count": 0, "estimated_total_cents": 0, "priced_subtotal_cents": 0, "balance_cents": balance, "remaining_cents": balance, "over_budget_cents": 0, "unknown_price_count": 0}
+    rows, priced_total, unknown = [], 0, 0
+    for item in cart.items:
+        # Snapshots make carts independent of wishlist membership and deleted cards.
+        unit = item.estimated_unit_price_cents
+        if unit is None: unknown += item.quantity
+        else: priced_total += unit * item.quantity
+        rows.append({"id": item.id, "card_id": item.card_id, "quantity": item.quantity, "price_cents": unit,
+                     "line_total_cents": unit * item.quantity if unit is not None else None,
+                     "name": item.card_name_snapshot or item.card_id, "set_name": item.set_name_snapshot,
+                     "number": item.card_number_snapshot, "image": item.image_snapshot,
+                     "cardmarket_url": item.cardmarket_url_snapshot})
+    return {"id": cart.id, "items": rows, "item_count": sum(row["quantity"] for row in rows),
+            "estimated_total_cents": priced_total, "priced_subtotal_cents": priced_total,
+            "balance_cents": balance, "remaining_cents": max(0, balance - priced_total),
+            "over_budget_cents": max(0, priced_total - balance), "unknown_price_count": unknown}
 
 
-def _require_cart_item(db: Session, account: BudgetAccount, wishlist_item_id: int) -> WishlistItem:
-    item = db.query(WishlistItem).options(joinedload(WishlistItem.card)).filter(
-        WishlistItem.id == wishlist_item_id, WishlistItem.user_id == account.user_id
-    ).first()
-    if not item or not item.card:
-        raise HTTPException(status_code=404, detail="Wishlist item is unavailable")
-    return item
+def _require_cart_card(db: Session, card_id: str) -> Card:
+    card = db.query(Card).options(joinedload(Card.set_ref)).filter(Card.id == card_id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Card is unavailable")
+    return card
+
+
+def _editable_cart(db: Session, account: BudgetAccount) -> BudgetDraftCart:
+    pending = db.query(BudgetPurchasePlan).filter(BudgetPurchasePlan.account_id == account.id, BudgetPurchasePlan.status == "pending_approval").first()
+    if pending:
+        raise HTTPException(status_code=409, detail="Cart is pending approval")
+    cart = db.query(BudgetDraftCart).filter(BudgetDraftCart.account_id == account.id).with_for_update().first()
+    if not cart:
+        cart = BudgetDraftCart(account_id=account.id); db.add(cart); db.flush()
+    return cart
 
 
 @router.get("/cart")
 def get_cart(user_id: int | None = Query(default=None), session: AuthSession = Depends(get_auth_session), db: Session = Depends(get_db)):
-    target = _target_user(db, session, user_id)
-    account = _account(db, target.id)
-    if not account:
-        return {"id": None, "items": [], "item_count": 0, "estimated_total_cents": 0}
-    _accrue(db, account)
-    return _cart_payload(db, account)
+    target = _target_user(db, session, user_id); account = _account(db, target.id)
+    if not account: return {"id": None, "items": [], "item_count": 0, "estimated_total_cents": 0, "priced_subtotal_cents": 0, "balance_cents": 0, "remaining_cents": 0, "over_budget_cents": 0, "unknown_price_count": 0}
+    _accrue(db, account); return _cart_payload(db, account)
+
+
+@router.post("/cart/items")
+def add_cart_item(data: DraftCartItemWrite, session: AuthSession = Depends(get_auth_session), db: Session = Depends(get_db)):
+    target = _target_user(db, session, data.user_id); account = _account(db, target.id)
+    if not account or not account.credit_enabled: raise HTTPException(status_code=404, detail="Enabled budget account not configured")
+    card = _require_cart_card(db, data.card_id); cart = _editable_cart(db, account)
+    row = db.query(BudgetDraftCartItem).filter(BudgetDraftCartItem.cart_id == cart.id, BudgetDraftCartItem.card_id == card.id).first()
+    if row: row.quantity = min(99, row.quantity + data.quantity)
+    else:
+        db.add(BudgetDraftCartItem(cart_id=cart.id, card_id=card.id, quantity=data.quantity,
+            card_name_snapshot=card.name, set_name_snapshot=card.set_ref.name if card.set_ref else card.set_id,
+            card_number_snapshot=card.number, image_snapshot=card.images_small or card.images_large or card.custom_image_url,
+            estimated_unit_price_cents=_price_cents(card), cardmarket_url_snapshot=getattr(card, "cardmarket_url", None)))
+    cart.updated_at = datetime.utcnow(); db.commit(); return _cart_payload(db, account)
 
 
 @router.put("/cart/items")
 def put_cart_item(data: DraftCartItemWrite, session: AuthSession = Depends(get_auth_session), db: Session = Depends(get_db)):
-    target = _target_user(db, session, data.user_id)
-    account = _account(db, target.id)
-    if not account:
-        raise HTTPException(status_code=404, detail="Budget account not configured")
-    _require_cart_item(db, account, data.wishlist_item_id)
-    cart = db.query(BudgetDraftCart).filter(BudgetDraftCart.account_id == account.id).with_for_update().first()
-    if not cart:
-        cart = BudgetDraftCart(account_id=account.id)
-        db.add(cart); db.flush()
-    row = db.query(BudgetDraftCartItem).filter(BudgetDraftCartItem.cart_id == cart.id, BudgetDraftCartItem.wishlist_item_id == data.wishlist_item_id).first()
-    if row:
-        row.quantity = data.quantity
-    else:
-        db.add(BudgetDraftCartItem(cart_id=cart.id, wishlist_item_id=data.wishlist_item_id, quantity=data.quantity))
-    cart.updated_at = datetime.utcnow()
-    db.commit()
-    return _cart_payload(db, account)
+    # Compatibility endpoint, deliberately same card-only contract; sets an exact quantity.
+    target = _target_user(db, session, data.user_id); account = _account(db, target.id)
+    if not account or not account.credit_enabled: raise HTTPException(status_code=404, detail="Enabled budget account not configured")
+    card = _require_cart_card(db, data.card_id); cart = _editable_cart(db, account)
+    row = db.query(BudgetDraftCartItem).filter(BudgetDraftCartItem.cart_id == cart.id, BudgetDraftCartItem.card_id == card.id).first()
+    if row: row.quantity = data.quantity
+    else: db.add(BudgetDraftCartItem(cart_id=cart.id, card_id=card.id, quantity=data.quantity, card_name_snapshot=card.name, set_name_snapshot=card.set_ref.name if card.set_ref else card.set_id, card_number_snapshot=card.number, image_snapshot=card.images_small or card.images_large or card.custom_image_url, estimated_unit_price_cents=_price_cents(card)))
+    db.commit(); return _cart_payload(db, account)
 
 
-@router.delete("/cart/items/{wishlist_item_id}")
-def delete_cart_item(wishlist_item_id: int, user_id: int | None = Query(default=None), session: AuthSession = Depends(get_auth_session), db: Session = Depends(get_db)):
-    target = _target_user(db, session, user_id)
-    account = _account(db, target.id)
-    if not account:
-        raise HTTPException(status_code=404, detail="Budget account not configured")
-    cart = db.query(BudgetDraftCart).filter(BudgetDraftCart.account_id == account.id).first()
-    if cart:
-        db.query(BudgetDraftCartItem).filter(BudgetDraftCartItem.cart_id == cart.id, BudgetDraftCartItem.wishlist_item_id == wishlist_item_id).delete()
-        db.commit()
+@router.delete("/cart/items/{card_id}")
+def delete_cart_item(card_id: str, user_id: int | None = Query(default=None), session: AuthSession = Depends(get_auth_session), db: Session = Depends(get_db)):
+    target = _target_user(db, session, user_id); account = _account(db, target.id)
+    if not account: raise HTTPException(status_code=404, detail="Budget account not configured")
+    cart = _editable_cart(db, account)
+    db.query(BudgetDraftCartItem).filter(BudgetDraftCartItem.cart_id == cart.id, BudgetDraftCartItem.card_id == card_id).delete(); db.commit()
     return _cart_payload(db, account)
 
 
 @router.post("/cart/submit")
 def submit_cart(user_id: int | None = Query(default=None), session: AuthSession = Depends(get_auth_session), db: Session = Depends(get_db)):
-    target = _target_user(db, session, user_id)
-    account = _account(db, target.id)
-    if not account:
-        raise HTTPException(status_code=404, detail="Budget account not configured")
+    target = _target_user(db, session, user_id); account = _account(db, target.id)
+    if not account: raise HTTPException(status_code=404, detail="Budget account not configured")
     cart = db.query(BudgetDraftCart).options(joinedload(BudgetDraftCart.items)).filter(BudgetDraftCart.account_id == account.id).first()
-    if not cart or not cart.items:
-        raise HTTPException(status_code=400, detail="Your cart is empty")
-    # A plan preserves the immutable purchase snapshot. Clear the editable cart only
-    # after plan creation succeeds, so drafts survive reloads and failed submissions.
-    result = create_plan(PurchasePlanCreate(user_id=target.id, wishlist_item_ids=[row.wishlist_item_id for row in cart.items]), session, db)
-    plan = db.query(BudgetPurchasePlan).filter(BudgetPurchasePlan.id == result["id"]).one()
-    quantities = {row.wishlist_item_id: row.quantity for row in cart.items}
-    for item in plan.items:
-        item.quantity = quantities[item.wishlist_item_id]
-    plan.estimated_card_total_cents = sum(item.estimated_unit_price_cents * item.quantity for item in plan.items)
-    db.delete(cart)
-    db.commit()
-    return {"plan_id": plan.id, "status": plan.status}
+    if not cart or not cart.items: raise HTTPException(status_code=400, detail="Your cart is empty")
+    plan = BudgetPurchasePlan(account_id=account.id, created_by_user_id=session.current_user.id, estimated_card_total_cents=sum((i.estimated_unit_price_cents or 0) * i.quantity for i in cart.items))
+    db.add(plan); db.flush()
+    for row in cart.items:
+        db.add(BudgetPurchasePlanItem(purchase_plan_id=plan.id, card_id=row.card_id, quantity=row.quantity, estimated_unit_price_cents=row.estimated_unit_price_cents or 0, card_name_snapshot=row.card_name_snapshot or row.card_id, set_name_snapshot=row.set_name_snapshot, cardmarket_url_snapshot=row.cardmarket_url_snapshot))
+    db.delete(cart); db.commit(); return {"plan_id": plan.id, "status": plan.status}
 
 
 @router.post("/plans")

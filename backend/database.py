@@ -400,6 +400,21 @@ def _run_migrations(conn):
             UNIQUE(cart_id, wishlist_item_id), CHECK (quantity >= 1 AND quantity <= 99)
         )""",
         "CREATE INDEX IF NOT EXISTS idx_budget_cart_items_cart ON budget_draft_cart_items(cart_id)",
+        # v56: carts are card-centric. Reconcile legacy wishlist rows before indexing.
+        "ALTER TABLE budget_draft_cart_items ADD COLUMN IF NOT EXISTS card_id VARCHAR",
+        "ALTER TABLE budget_draft_cart_items ADD COLUMN IF NOT EXISTS card_name_snapshot VARCHAR",
+        "ALTER TABLE budget_draft_cart_items ADD COLUMN IF NOT EXISTS set_name_snapshot VARCHAR",
+        "ALTER TABLE budget_draft_cart_items ADD COLUMN IF NOT EXISTS card_number_snapshot VARCHAR",
+        "ALTER TABLE budget_draft_cart_items ADD COLUMN IF NOT EXISTS image_snapshot VARCHAR",
+        "ALTER TABLE budget_draft_cart_items ADD COLUMN IF NOT EXISTS estimated_unit_price_cents INTEGER",
+        "ALTER TABLE budget_draft_cart_items ADD COLUMN IF NOT EXISTS cardmarket_url_snapshot VARCHAR",
+        "ALTER TABLE budget_draft_cart_items ALTER COLUMN wishlist_item_id DROP NOT NULL",
+        "UPDATE budget_draft_cart_items ci SET card_id = w.card_id FROM wishlist w WHERE ci.card_id IS NULL AND ci.wishlist_item_id = w.id",
+        "DELETE FROM budget_draft_cart_items WHERE card_id IS NULL",
+        """WITH grouped AS (SELECT cart_id, card_id, MIN(id) AS keep_id, LEAST(99, SUM(quantity)) AS total FROM budget_draft_cart_items WHERE card_id IS NOT NULL GROUP BY cart_id, card_id HAVING COUNT(*) > 1) UPDATE budget_draft_cart_items i SET quantity = grouped.total FROM grouped WHERE i.id = grouped.keep_id""",
+        "DELETE FROM budget_draft_cart_items a USING budget_draft_cart_items b WHERE a.cart_id=b.cart_id AND a.card_id=b.card_id AND a.id>b.id",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_budget_cart_card ON budget_draft_cart_items(cart_id, card_id)",
+
         """CREATE UNIQUE INDEX IF NOT EXISTS uq_budget_weekly_credit_date
            ON budget_ledger_entries(account_id, effective_date)
            WHERE entry_type = 'weekly_allowance'""",

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { Plus, Check, Heart, BookOpen, X, PenLine, Pencil, Trash2, ExternalLink } from 'lucide-react'
+import BudgetCartButton from './BudgetCartButton'
 import { addToCollection, addToWishlist, createCustomCard, updateCustomCard, updateCardCustomImage, deleteCustomCard, getSets, getPriceHistory } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import toast from 'react-hot-toast'
@@ -501,7 +502,8 @@ export const CardItem = memo(function CardItem({ card, showActions = true, onAdd
         </div>
 
         {showActions && (
-          <div className="mt-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="mt-3 flex gap-1.5">
+            <BudgetCartButton cardId={card.id} />
             <button
               className="flex-1 bg-brand-red/20 hover:bg-brand-red/40 text-brand-red text-xs py-1.5 rounded-lg font-medium transition-all flex items-center justify-center gap-1"
               onClick={(e) => {

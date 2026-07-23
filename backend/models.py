@@ -311,16 +311,23 @@ class BudgetDraftCartItem(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     cart_id = Column(Integer, ForeignKey("budget_draft_carts.id", ondelete="CASCADE"), nullable=False)
-    wishlist_item_id = Column(Integer, nullable=False)
+    # Legacy provenance only; card_id is the cart identity.
+    wishlist_item_id = Column(Integer, nullable=True)
+    card_id = Column(String, ForeignKey("cards.id", ondelete="SET NULL"), nullable=True)
     quantity = Column(Integer, nullable=False, default=1)
+    card_name_snapshot = Column(String, nullable=True)
+    set_name_snapshot = Column(String, nullable=True)
+    card_number_snapshot = Column(String, nullable=True)
+    image_snapshot = Column(String, nullable=True)
+    estimated_unit_price_cents = Column(Integer, nullable=True)
+    cardmarket_url_snapshot = Column(String, nullable=True)
 
     cart = relationship("BudgetDraftCart", back_populates="items")
 
     __table_args__ = (
-        UniqueConstraint("cart_id", "wishlist_item_id", name="uq_budget_cart_wishlist_item"),
+        UniqueConstraint("cart_id", "card_id", name="uq_budget_cart_card"),
         CheckConstraint("quantity >= 1 AND quantity <= 99", name="ck_budget_cart_item_quantity"),
     )
-
 
 class PriceHistory(Base):
     __tablename__ = "price_history"
