@@ -2,7 +2,7 @@ import { useState, useEffect, useId, memo } from 'react'
 import { createPortal } from 'react-dom'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Plus, Check, Heart, BookOpen, X, PenLine, Pencil, Trash2, ExternalLink } from 'lucide-react'
+import { Plus, Heart, BookOpen, X, PenLine, Pencil, Trash2, ExternalLink } from 'lucide-react'
 import { addToCollection, addToWishlist, createCustomCard, updateCustomCard, updateCardCustomImage, deleteCustomCard, getSets, getPriceHistory } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import toast from 'react-hot-toast'
@@ -17,6 +17,7 @@ import { tcgdexLanguageBadgeClass, tcgdexLanguageLabel, getTcgdexLanguage } from
 import { invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
 import { parseMoneyInputValue } from '../utils/moneyInput'
 import { cardmarketLinks } from '../utils/cardmarket'
+import CardStateIndicators from './CardStateIndicators'
 
 function askWishlistQuantity(t, defaultQuantity = 1) {
   const initialQuantity = Math.max(1, Math.min(99, parseInt(defaultQuantity, 10) || 1))
@@ -390,46 +391,6 @@ export function CustomCardModal({ onClose, onCreated, sets: setsProp = [], autoA
   )
 }
 
-function CardStatusBadges({ card, compact = false, t }) {
-  const ownedQuantity = Number(card?.owned_quantity || 0)
-  const isOwned = Boolean(card?.owned || ownedQuantity > 0)
-  const isWishlisted = Boolean(card?.wishlisted)
-
-  if (!isOwned && !isWishlisted) return null
-
-  return (
-    <div className={clsx(
-      'pointer-events-none absolute left-2 top-2 z-10 flex flex-col items-start gap-1',
-      compact && 'left-1.5 top-1.5'
-    )}>
-      {isOwned && (
-        <span
-          className={clsx(
-            'inline-flex items-center gap-1 rounded-full border border-green/40 bg-green/90 font-bold text-white shadow-lg backdrop-blur-sm',
-            compact ? 'px-1.5 py-1 text-[10px]' : 'px-2 py-1 text-[10px]'
-          )}
-          title={`${t('pokedex.owned')}${ownedQuantity > 0 ? ` ×${ownedQuantity}` : ''}`}
-        >
-          <Check size={compact ? 10 : 11} strokeWidth={3} aria-hidden="true" />
-          {!compact && <span>{t('pokedex.owned')}{ownedQuantity > 1 ? ` ×${ownedQuantity}` : ''}</span>}
-        </span>
-      )}
-      {isWishlisted && (
-        <span
-          className={clsx(
-            'inline-flex items-center gap-1 rounded-full border border-pink-400/40 bg-pink-500/90 font-bold text-white shadow-lg backdrop-blur-sm',
-            compact ? 'px-1.5 py-1 text-[10px]' : 'px-2 py-1 text-[10px]'
-          )}
-          title={t('nav.wishlist')}
-        >
-          <Heart size={compact ? 10 : 11} fill="currentColor" aria-hidden="true" />
-          {!compact && <span>{t('nav.wishlist')}</span>}
-        </span>
-      )}
-    </div>
-  )
-}
-
 export const CardItem = memo(function CardItem({ card, showActions = true, onAddToBinder = null, compact = false, lang = null }) {
   const [showModal, setShowModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -479,7 +440,7 @@ export const CardItem = memo(function CardItem({ card, showActions = true, onAdd
     return (
       <div ref={tiltRef} className="card cursor-pointer group p-2 hover:border-brand-red/20 transition-all" onClick={() => setShowModal(true)} onMouseMove={tiltMove} onMouseLeave={tiltLeave}>
         <div className="relative aspect-[2.5/3.5] w-full rounded-xl overflow-hidden ring-1 ring-white/5 group-hover:ring-2 group-hover:ring-brand-red/30 transition-all duration-200">
-          <CardStatusBadges card={card} compact t={t} />
+          <CardStateIndicators card={card} compact className="absolute left-1.5 right-1.5 top-1.5 z-10" />
           {cardImage ? (
             <img src={cardImage} alt={cardName} className="w-full h-full object-cover shadow-lg group-hover:scale-[1.02] transition-transform duration-300" loading="lazy" />
           ) : (
@@ -496,7 +457,7 @@ export const CardItem = memo(function CardItem({ card, showActions = true, onAdd
     <>
       <div ref={tiltRef} className="card cursor-pointer group hover:border-brand-red/20 transition-all" onClick={() => setShowModal(true)} onMouseMove={tiltMove} onMouseLeave={tiltLeave}>
         <div className="relative aspect-[2.5/3.5] w-full mb-3 rounded-xl overflow-hidden ring-1 ring-white/5 group-hover:ring-2 group-hover:ring-brand-red/30 transition-all duration-200">
-          <CardStatusBadges card={card} t={t} />
+          <CardStateIndicators card={card} className="absolute left-2 right-2 top-2 z-10" />
           {cardImage ? (
             <img src={cardImage} alt={cardName} className="w-full h-full object-cover shadow-lg group-hover:scale-[1.02] transition-transform duration-300" loading="lazy" />
           ) : (
