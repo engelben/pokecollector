@@ -11,7 +11,7 @@ function Progress({ cart, currency }) {
   const usage = balance ? subtotal / balance : (subtotal ? Infinity : 0)
   const over = usage > 1; const warning = usage >= .8
   const color = over ? 'bg-brand-red' : warning ? 'bg-orange-500' : subtotal ? 'bg-green' : 'bg-text-muted'
-  return <div className="space-y-1"><div className="flex justify-between text-xs"><span>Cart: {money(subtotal, currency)}</span><span>{over ? `Over: ${money(cart.over_budget_cents, currency)}` : `Left: ${money(cart.remaining_cents, currency)}`}</span></div><div className="h-2 overflow-hidden rounded-full bg-bg-elevated"><div className={`h-full ${color}`} style={{ width: `${Math.min(100, usage * 100)}%` }} /></div>{cart.unknown_price_count > 0 && <p className="flex items-center gap-1 text-xs text-orange-400"><HelpCircle size={13} /> Total is incomplete: {cart.unknown_price_count} unpriced card(s).</p>}</div>
+  return <div className="space-y-1"><div className="flex justify-between text-xs"><span>Cart: {money(subtotal, currency)}</span><span className={over ? 'text-brand-red font-bold' : ''}>{over ? `Over: ${money(cart.over_budget_cents, currency)}` : `Left: ${money(cart.remaining_cents, currency)}`}</span></div><div className="h-2 overflow-hidden rounded-full bg-bg-elevated"><div className={`h-full ${color}`} style={{ width: `${Math.min(100, usage * 100)}%` }} /></div>{cart.unknown_price_count > 0 && <p className="flex items-center gap-1 text-xs text-orange-400"><HelpCircle size={13} /> Total is incomplete: {cart.unknown_price_count} unpriced card(s).</p>}</div>
 }
 export default function BudgetCart({ summary, userId = null }) {
   const [open, setOpen] = useState(false); const queryClient = useQueryClient()

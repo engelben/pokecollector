@@ -7,7 +7,7 @@ import BudgetCart from './BudgetCart'
 export default function Layout() {
   const location = useLocation()
   const isHome = location.pathname === '/'
-  const showBudgetCart = /^\/(sets|search|collection|pokedex)(?:\/|$)/.test(location.pathname)
+  const showBudgetCart = /^\/(sets|search|cards|collection|pokedex|wishlist)(?:\/|$)/.test(location.pathname)
   const summary = useQuery({ queryKey: ['budget-summary', null], queryFn: () => getBudgetSummary() })
 
   return (
