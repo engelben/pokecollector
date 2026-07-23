@@ -108,18 +108,37 @@ def _card_to_dict(card: Card) -> dict:
 
 def _with_collection_summary(db: Session, current_user: User, card_dicts: List[dict]) -> List[dict]:
     """Attach collector-scoped tile state; keep rows only for existing action modals."""
-    summaries = card_state_summaries(db, current_user.id, [card.get("id") for card in card_dicts])
+    if not card_dicts:
+        return card_dicts
+
+    card_ids = [card["id"] for card in card_dicts]
     items = db.query(CollectionItem).filter(
         CollectionItem.user_id == current_user.id,
-        CollectionItem.card_id.in_(summaries),
+        CollectionItem.card_id.in_(card_ids),
     ).all()
+    summaries = card_state_summaries(
+        db,
+        current_user.id,
+        card_ids,
+        collection_items=items,
+    )
     by_card: dict[str, list[CollectionItem]] = {}
     for item in items:
         by_card.setdefault(item.card_id, []).append(item)
     for card in card_dicts:
         card.update(summaries.get(card.get("id"), {}))
         # CardModal edits exact rows, so retain this existing action payload.
-        card["owned_items"] = [{"id": item.id, "quantity": item.quantity, "condition": item.condition, "variant": item.variant, "lang": item.lang, "purchase_price": item.purchase_price} for item in by_card.get(card.get("id"), [])]
+        card["owned_items"] = [
+            {
+                "id": item.id,
+                "quantity": item.quantity,
+                "condition": item.condition,
+                "variant": item.variant,
+                "lang": item.lang,
+                "purchase_price": item.purchase_price,
+            }
+            for item in by_card.get(card.get("id"), [])
+        ]
     return card_dicts
 
 def _enrich_search_page_metadata(db: Session, cards: List[Card]) -> List[Card]:

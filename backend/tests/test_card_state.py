@@ -39,6 +39,26 @@ class CardStateSummaryTests(unittest.TestCase):
         self.assertTrue(summary["owned"])
         self.assertTrue(summary["wishlisted"])
 
+    def test_uses_prefetched_collection_items(self):
+        item = CollectionItem(
+            card_id=self.card.id,
+            user_id=self.owner.id,
+            variant="Holo",
+            quantity=2,
+        )
+        self.db.add(item)
+        self.db.commit()
+
+        summary = card_state_summaries(
+            self.db,
+            self.owner.id,
+            [self.card.id],
+            collection_items=[],
+        )[self.card.id]
+
+        self.assertFalse(summary["owned"])
+        self.assertEqual(summary["owned_quantity"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

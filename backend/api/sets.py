@@ -268,7 +268,12 @@ def get_set_checklist(
     owned_by_card: dict[str, list[CollectionItem]] = {}
     for item in collection_items:
         owned_by_card.setdefault(item.card_id, []).append(item)
-    summaries = card_state_summaries(db, current_user.id, [card.id for card in cards])
+    summaries = card_state_summaries(
+        db,
+        current_user.id,
+        [card.id for card in cards],
+        collection_items=collection_items,
+    )
     owned_count = sum(1 for summary in summaries.values() if summary["owned"])
     total_count = len(cards)
 
