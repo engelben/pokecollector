@@ -654,27 +654,27 @@ export default function CardSearch() {
                     className={`card-3d group relative ${selectMode && isSelected ? 'ring-2 ring-brand-red rounded-xl' : ''}`}
                     onClick={() => (selectMode ? toggleSelected(card) : setSelectedCard(card))}
                   >
-                    <div className="aspect-[2.5/3.5] rounded-xl overflow-hidden bg-bg-elevated ring-1 ring-white/5 group-hover:ring-brand-red/40">
+                    <div className="relative aspect-[2.5/3.5] rounded-xl overflow-hidden bg-bg-elevated ring-1 ring-white/5 group-hover:ring-brand-red/40">
                       {imgSrc
                         ? <img src={imgSrc} alt={card.name} className="w-full h-full object-cover" loading="lazy" />
                         : <div className="w-full h-full flex flex-col items-center justify-center gap-1 p-2">
                             <span className="text-[10px] text-text-muted text-center leading-tight">{card.name}</span>
                           </div>
                       }
+                      {selectMode && (
+                        <div
+                          className={`absolute bottom-1.5 left-1.5 w-6 h-6 rounded-md flex items-center justify-center border-2 transition-colors pointer-events-none ${
+                            isSelected
+                              ? 'bg-brand-red border-brand-red text-white'
+                              : 'bg-bg-elevated/80 border-white/40 backdrop-blur'
+                          }`}
+                        >
+                          {isSelected && <Check size={14} strokeWidth={3} />}
+                        </div>
+                      )}
                     </div>
                     {card.rarity?.toLowerCase().includes('holo') && (
                       <div className="absolute inset-0 rounded-xl pointer-events-none card-holo" />
-                    )}
-                    {selectMode && (
-                      <div
-                        className={`absolute top-1.5 left-1.5 w-6 h-6 rounded-md flex items-center justify-center border-2 transition-colors pointer-events-none ${
-                          isSelected
-                            ? 'bg-brand-red border-brand-red text-white'
-                            : 'bg-bg-elevated/80 border-white/40 backdrop-blur'
-                        }`}
-                      >
-                        {isSelected && <Check size={14} strokeWidth={3} />}
-                      </div>
                     )}
                     <CardStateIndicators
                       card={card}
