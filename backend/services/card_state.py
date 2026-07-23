@@ -32,7 +32,7 @@ def card_state_summaries(db, user_id, card_ids, collection_items=None):
 
     variants = defaultdict(lambda: defaultdict(int))
     for item in collection_items:
-        if item.card_id not in summaries:
+        if item.user_id != user_id or item.card_id not in summaries:
             continue
         quantity = max(int(item.quantity or 0), 0)
         if quantity:

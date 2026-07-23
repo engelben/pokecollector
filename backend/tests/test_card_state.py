@@ -59,6 +59,24 @@ class CardStateSummaryTests(unittest.TestCase):
         self.assertFalse(summary["owned"])
         self.assertEqual(summary["owned_quantity"], 0)
 
+    def test_prefetched_collection_items_are_scoped_to_the_owner(self):
+        other_item = CollectionItem(
+            card_id=self.card.id,
+            user_id=self.other.id,
+            variant="Holo",
+            quantity=2,
+        )
+
+        summary = card_state_summaries(
+            self.db,
+            self.owner.id,
+            [self.card.id],
+            collection_items=[other_item],
+        )[self.card.id]
+
+        self.assertFalse(summary["owned"])
+        self.assertEqual(summary["owned_quantity"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
