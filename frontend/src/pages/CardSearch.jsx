@@ -4,6 +4,7 @@ import { Search, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, SortAsc, 
 import toast from 'react-hot-toast'
 import { searchCards, getSets, getCustomCards, bulkAddToCollection } from '../api/client'
 import { CardItem, CustomCardModal, CardModal } from '../components/CardItem'
+import CardStateIndicators from '../components/CardStateIndicators'
 import { useSettings } from '../contexts/SettingsContext'
 import Sheet from '../components/ui/Sheet'
 import CardScanner from '../components/CardScanner'
@@ -675,11 +676,11 @@ export default function CardSearch() {
                         {isSelected && <Check size={14} strokeWidth={3} />}
                       </div>
                     )}
-                    {card.owned_quantity > 0 && (
-                      <div className="absolute top-1.5 right-1.5 rounded-full bg-green/90 text-white text-[10px] font-bold px-1.5 py-0.5 shadow">
-                        ✓ {card.owned_quantity}x
-                      </div>
-                    )}
+                    <CardStateIndicators
+                      card={card}
+                      compact
+                      className="absolute left-1.5 right-1.5 top-1.5 z-10"
+                    />
                     <div className="mt-1.5 px-0.5">
                       <div className="flex items-center gap-1">
                         <p className="text-[11px] font-semibold text-text-primary truncate leading-tight flex-1">{card.name}</p>
