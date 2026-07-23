@@ -1,7 +1,26 @@
 from datetime import date
+import ast
+from pathlib import Path
 from types import SimpleNamespace
 
 from api.budget import _price_cents, _purchase_rule_bucket
+from models import BudgetDraftCart, BudgetDraftCartItem
+
+
+def test_wallet_core_models_are_defined_once_with_cart_capable_account():
+    """Keep wallet model consolidation explicit during future feature merges."""
+    tree = ast.parse(Path(__file__).parents[1].joinpath("models.py").read_text())
+    classes = {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
+    core_names = {
+        "BudgetAccount",
+        "BudgetPurchasePlan",
+        "BudgetLedgerEntry",
+        "BudgetPurchasePlanItem",
+    }
+    assert sum(node.name in core_names for node in tree.body if isinstance(node, ast.ClassDef)) == len(core_names)
+    account_fields = {node.targets[0].id for node in classes["BudgetAccount"].body
+                      if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)}
+    assert {"weekly_credit_cents", "source_wishlist_ids", "parent_covers_shipping", "cart"} <= account_fields
 
 
 def test_price_cents_uses_trend_first():
@@ -45,3 +64,11 @@ def test_season_end_becomes_purchasable_after_unlock():
     )
     assert bucket is None
     assert unlock is None
+
+
+def test_draft_cart_models_keep_quantity_separate_from_ledger_plans():
+    cart = BudgetDraftCart(account_id=4)
+    item = BudgetDraftCartItem(wishlist_item_id=12, quantity=3)
+    cart.items.append(item)
+    assert cart.items[0].wishlist_item_id == 12
+    assert cart.items[0].quantity == 3

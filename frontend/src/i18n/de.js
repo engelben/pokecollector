@@ -57,6 +57,15 @@ const de = {
     searchFallback: 'Keine genaue Produkt-ID gespeichert; es wird nach Set und Kartennummer gesucht.',
   },
 
+  allowanceCart: {
+    title: 'Wunschlisten-Warenkorb',
+    add: 'Zum Wunschlisten-Warenkorb hinzufügen',
+    alreadyAdded: 'Bereits im Wunschlisten-Warenkorb',
+    empty: 'Dein Warenkorb ist leer. Füge Karten aus deiner Wunschliste hinzu.',
+    total: 'Geschätzte Summe',
+    submit: 'Korb zur Freigabe speichern',
+  },
+
   // Common / General
   fallback: {
     data: 'Daten',

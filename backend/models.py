@@ -207,6 +207,7 @@ class BudgetAccount(Base):
 
     ledger_entries = relationship("BudgetLedgerEntry", back_populates="account", cascade="all, delete-orphan")
     purchase_plans = relationship("BudgetPurchasePlan", back_populates="account", cascade="all, delete-orphan")
+    cart = relationship("BudgetDraftCart", back_populates="account", cascade="all, delete-orphan", uselist=False)
 
     __table_args__ = (
         CheckConstraint("weekly_credit_cents >= 0", name="ck_budget_weekly_credit_nonnegative"),
@@ -285,6 +286,39 @@ class BudgetPurchasePlanItem(Base):
         CheckConstraint("quantity >= 1", name="ck_budget_plan_item_quantity"),
         CheckConstraint("estimated_unit_price_cents >= 0", name="ck_budget_plan_item_estimated_nonnegative"),
         CheckConstraint("actual_unit_price_cents IS NULL OR actual_unit_price_cents >= 0", name="ck_budget_plan_item_actual_nonnegative"),
+    )
+
+
+class BudgetDraftCart(Base):
+    """One durable, editable shopping cart per allowance account.
+
+    It is deliberately separate from purchase plans: a cart never changes the
+    ledger and is only converted to a plan when the collector asks for approval.
+    """
+    __tablename__ = "budget_draft_carts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    account_id = Column(Integer, ForeignKey("budget_accounts.id", ondelete="CASCADE"), nullable=False, unique=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    account = relationship("BudgetAccount", back_populates="cart")
+    items = relationship("BudgetDraftCartItem", back_populates="cart", cascade="all, delete-orphan")
+
+
+class BudgetDraftCartItem(Base):
+    __tablename__ = "budget_draft_cart_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    cart_id = Column(Integer, ForeignKey("budget_draft_carts.id", ondelete="CASCADE"), nullable=False)
+    wishlist_item_id = Column(Integer, nullable=False)
+    quantity = Column(Integer, nullable=False, default=1)
+
+    cart = relationship("BudgetDraftCart", back_populates="items")
+
+    __table_args__ = (
+        UniqueConstraint("cart_id", "wishlist_item_id", name="uq_budget_cart_wishlist_item"),
+        CheckConstraint("quantity >= 1 AND quantity <= 99", name="ck_budget_cart_item_quantity"),
     )
 
 
