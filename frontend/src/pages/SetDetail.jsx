@@ -13,7 +13,7 @@ import FallbackBadges from '../components/FallbackBadges'
 import CardStateIndicators from '../components/CardStateIndicators'
 import { HOLO_FIELD_MAP } from '../utils/prices'
 import TcgdexLanguageSelect from '../components/TcgdexLanguageSelect'
-import { invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
+import { invalidateCardState, invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
 import MoneyInput from '../components/MoneyInput'
 import { parseMoneyInputValue } from '../utils/moneyInput'
 
@@ -306,11 +306,8 @@ export default function SetDetail() {
     }),
     onSuccess: () => {
       toast.success(t('card.addedToCollection'))
-      queryClient.invalidateQueries({ queryKey: ['set-checklist', setId] })
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient, { setId })
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
       setSelectedCard(null)
     },
     onError: () => toast.error(t('card.addFailed')),
@@ -323,7 +320,7 @@ export default function SetDetail() {
     }),
     onSuccess: () => {
       toast.success(t('card.addedToWishlist'))
-      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
+      invalidateCardState(queryClient, { setId })
       invalidateTcgdexFilterLanguages(queryClient)
       setSelectedCard(null)
     },
@@ -334,11 +331,8 @@ export default function SetDetail() {
     mutationFn: (item) => removeFromCollection(item.id),
     onSuccess: () => {
       toast.success(t('collection.removed'))
-      queryClient.invalidateQueries({ queryKey: ['set-checklist', setId] })
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient, { setId })
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
       setSelectedCard(null)
     },
     onError: () => toast.error(t('collection.removeFailed')),
@@ -348,11 +342,8 @@ export default function SetDetail() {
     mutationFn: ({ item, quantity }) => updateCollectionItem(item.id, { quantity }),
     onSuccess: () => {
       toast.success(t('collection.updated'))
-      queryClient.invalidateQueries({ queryKey: ['set-checklist', setId] })
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient, { setId })
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
     },
     onError: () => toast.error(t('collection.updateFailed')),
   })

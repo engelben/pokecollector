@@ -5,12 +5,19 @@ import { getCardOwnedVariants, hasGenericOwnership, VARIANT_PILL_META } from '..
 
 const VARIANT_ICONS = { Normal: Circle, Holo: Sparkles, 'Reverse Holo': SquareAsterisk, 'First Edition': Medal }
 
+export const getCardState = (card = {}, showOwnership = true, showWishlist = true) => {
+  const variants = showOwnership ? getCardOwnedVariants(card) : []
+  return {
+    variants,
+    genericOwned: showOwnership && variants.length === 0 && hasGenericOwnership(card),
+    wishlisted: showWishlist && (card.wishlisted === true || Number(card.wishlist_count || 0) > 0),
+  }
+}
+
 /** Reusable, non-positioned ownership and wishlist indicators for card art. */
 export default function CardStateIndicators({ card, compact = false, showOwnership = true, showWishlist = true, className = '' }) {
   const { t } = useSettings()
-  const variants = showOwnership ? getCardOwnedVariants(card) : []
-  const genericOwned = showOwnership && variants.length === 0 && hasGenericOwnership(card)
-  const wishlisted = showWishlist && Boolean(card?.wishlisted || Number(card?.wishlist_count) > 0)
+  const { variants, genericOwned, wishlisted } = getCardState(card, showOwnership, showWishlist)
   if (!variants.length && !genericOwned && !wishlisted) return null
 
   return <div className={clsx('pointer-events-none flex items-start justify-between gap-1', className)}>

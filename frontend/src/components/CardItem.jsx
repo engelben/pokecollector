@@ -14,7 +14,7 @@ import FallbackBadges from './FallbackBadges'
 import MoneyInput from './MoneyInput'
 import { getEffectiveCardPrice } from '../utils/prices'
 import { tcgdexLanguageBadgeClass, tcgdexLanguageLabel, getTcgdexLanguage } from '../utils/tcgdexLanguages'
-import { invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
+import { invalidateCardState, invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
 import { parseMoneyInputValue } from '../utils/moneyInput'
 import { cardmarketLinks } from '../utils/cardmarket'
 import CardStateIndicators from './CardStateIndicators'
@@ -401,11 +401,8 @@ export const CardItem = memo(function CardItem({ card, showActions = true, onAdd
     mutationFn: (data) => addToCollection(data),
     onSuccess: () => {
       toast.success(`${card.name} ${t('card.addedToCollection')}`)
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'pokedex' })
     },
     onError: () => toast.error(t('card.addFailed')),
   })
@@ -414,9 +411,8 @@ export const CardItem = memo(function CardItem({ card, showActions = true, onAdd
     mutationFn: (data) => addToWishlist(data),
     onSuccess: () => {
       toast.success(`${card.name} ${t('card.addedToWishlist')}`)
-      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'pokedex' })
     },
     onError: () => toast.error(t('card.wishlistFailed')),
   })
@@ -621,11 +617,8 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
     mutationFn: (data) => addToCollection(data),
     onSuccess: () => {
       toast.success(`${t('common.add')} ${quantity}x ${card.name}!`)
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'pokedex' })
       onClose()
     },
     onError: () => toast.error(t('card.addFailed')),
@@ -635,7 +628,7 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
     mutationFn: (data) => addToWishlist(data),
     onSuccess: () => {
       toast.success(`${card.name} ${t('card.addedToWishlist')}`)
-      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
       onClose()
     },
