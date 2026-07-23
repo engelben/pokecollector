@@ -85,10 +85,10 @@ export default function Wishlist() {
   const walletQuery = useQuery({ queryKey: ['budget-summary', null], queryFn: () => getBudgetSummary() })
   const cartQuery = useQuery({ queryKey: ['budget-cart', null], queryFn: () => getBudgetCart(), enabled: Boolean(walletQuery.data?.enabled) })
   const cartMutation = useMutation({
-    mutationFn: (item) => putBudgetCartItem({ wishlist_item_id: item.id, quantity: 1 }),
+    mutationFn: (item) => putBudgetCartItem({ card_id: item.card_id, quantity: 1 }),
     onSuccess: () => { toast.success('Added to wishlist cart'); queryClient.invalidateQueries({ queryKey: ['budget-cart'] }) },
   })
-  const cartItems = new Set((cartQuery.data?.items || []).map(item => item.wishlist_item_id))
+  const cartItems = new Set((cartQuery.data?.items || []).map(item => item.card_id))
 
   const COLLECTION_TABS = [
     { to: '/collection', label: t('nav.collection'), icon: Library },
@@ -365,8 +365,8 @@ export default function Wishlist() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1 justify-end">
-                              {walletQuery.data?.enabled && <button onClick={() => cartMutation.mutate(item)} disabled={cartItems.has(item.id) || cartMutation.isPending}
-                                className="text-text-muted hover:text-gold disabled:opacity-30 transition-colors p-1" title={cartItems.has(item.id) ? 'Already in wishlist cart' : 'Add to wishlist cart'}>
+                              {walletQuery.data?.enabled && <button onClick={() => cartMutation.mutate(item)} disabled={cartItems.has(item.card_id) || cartMutation.isPending}
+                                className="text-text-muted hover:text-gold disabled:opacity-30 transition-colors p-1" title={cartItems.has(item.card_id) ? 'Already in wishlist cart' : 'Add to wishlist cart'}>
                                 <ShoppingCart size={14} />
                               </button>}
                               <button onClick={() => addToColMutation.mutate(item.card_id)}
@@ -423,7 +423,7 @@ export default function Wishlist() {
                       value={price ? formatPrice(price) : '-'}
                       rightAction={
                         <div className="flex flex-col gap-1">
-                          {walletQuery.data?.enabled && <button onClick={(e) => { e.stopPropagation(); cartMutation.mutate(item) }} disabled={cartItems.has(item.id) || cartMutation.isPending}
+                          {walletQuery.data?.enabled && <button onClick={(e) => { e.stopPropagation(); cartMutation.mutate(item) }} disabled={cartItems.has(item.card_id) || cartMutation.isPending}
                             className="text-text-muted hover:text-gold disabled:opacity-30 transition-colors p-1" title="Add to wishlist cart"><ShoppingCart size={12} /></button>}
                           <button onClick={(e) => { e.stopPropagation(); setEditingId(item.id) }}
                             className="text-text-muted hover:text-text-primary transition-colors p-1">

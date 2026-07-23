@@ -58,6 +58,12 @@ const de = {
   },
 
   allowanceCart: {
+    addToCart: 'In den Warenkorb',
+    inCart: 'Im Warenkorb',
+    awaitingApproval: 'Wartet auf Freigabe',
+    removeFromCart: 'Aus dem Warenkorb entfernen',
+    increaseQuantity: 'Menge erhöhen',
+    decreaseQuantity: 'Menge verringern',
     title: 'Wunschlisten-Warenkorb',
     add: 'Zum Wunschlisten-Warenkorb hinzufügen',
     alreadyAdded: 'Bereits im Wunschlisten-Warenkorb',

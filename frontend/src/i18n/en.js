@@ -58,6 +58,12 @@ const en = {
   },
 
   allowanceCart: {
+    addToCart: 'Add to cart',
+    inCart: 'In cart',
+    awaitingApproval: 'Awaiting approval',
+    removeFromCart: 'Remove from cart',
+    increaseQuantity: 'Increase quantity',
+    decreaseQuantity: 'Decrease quantity',
     title: 'Wishlist cart',
     add: 'Add to wishlist cart',
     alreadyAdded: 'Already in wishlist cart',
