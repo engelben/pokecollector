@@ -10,6 +10,8 @@ def card_state_summaries(db, user_id, card_ids, collection_items=None):
 
     ``collection_items`` lets callers reuse collection rows that they already
     fetched for card actions, rather than issuing the same query twice.
+    Rows with zero or negative quantity do not count as owned and do not
+    produce tile indicators.
     """
     ids = list(dict.fromkeys(card_id for card_id in card_ids if card_id))
     summaries = {
