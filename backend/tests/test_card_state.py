@@ -26,6 +26,7 @@ class CardStateSummaryTests(unittest.TestCase):
             CollectionItem(card_id=self.card.id, user_id=self.owner.id, variant="Normal", condition="NM", quantity=1),
             CollectionItem(card_id=self.card.id, user_id=self.owner.id, variant="Normal", condition="LP", quantity=2),
             CollectionItem(card_id=self.card.id, user_id=self.owner.id, variant="Holo", quantity=1),
+            CollectionItem(card_id=self.card.id, user_id=self.owner.id, variant="First Edition", quantity=1),
             CollectionItem(card_id=self.card.id, user_id=self.owner.id, variant="Reverse Holo", quantity=0),
             CollectionItem(card_id=self.card.id, user_id=self.other.id, variant="First Edition", quantity=9),
             WishlistItem(card_id=self.card.id, user_id=self.owner.id),
@@ -33,8 +34,8 @@ class CardStateSummaryTests(unittest.TestCase):
         ])
         self.db.commit()
         summary = card_state_summaries(self.db, self.owner.id, [self.card.id])[self.card.id]
-        self.assertEqual(summary["owned_quantity"], 4)
-        self.assertEqual(summary["owned_variants"], [{"variant": "Normal", "quantity": 3}, {"variant": "Holo", "quantity": 1}])
+        self.assertEqual(summary["owned_quantity"], 5)
+        self.assertEqual(summary["owned_variants"], [{"variant": "Normal", "quantity": 3}, {"variant": "Holo", "quantity": 1}, {"variant": "First Edition", "quantity": 1}])
         self.assertTrue(summary["owned"])
         self.assertTrue(summary["wishlisted"])
 
