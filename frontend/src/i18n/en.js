@@ -57,6 +57,15 @@ const en = {
     searchFallback: 'No exact product ID is stored; this opens a set and collector-number search.',
   },
 
+  allowanceCart: {
+    title: 'Wishlist cart',
+    add: 'Add to wishlist cart',
+    alreadyAdded: 'Already in wishlist cart',
+    empty: 'Your cart is empty. Add cards from your wishlist.',
+    total: 'Estimated total',
+    submit: 'Save basket for approval',
+  },
+
   // Common / General
   fallback: {
     data: 'Data',

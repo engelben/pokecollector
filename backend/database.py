@@ -386,6 +386,20 @@ def _run_migrations(conn):
         "CREATE INDEX IF NOT EXISTS idx_budget_ledger_account_date ON budget_ledger_entries(account_id, effective_date DESC, id DESC)",
         "CREATE INDEX IF NOT EXISTS idx_budget_plans_account_status ON budget_purchase_plans(account_id, status, created_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_budget_plan_items_plan ON budget_purchase_plan_items(purchase_plan_id)",
+        # v55: durable wishlist shopping cart; plans remain the approval/audit record.
+        """CREATE TABLE IF NOT EXISTS budget_draft_carts (
+            id SERIAL PRIMARY KEY,
+            account_id INTEGER NOT NULL UNIQUE REFERENCES budget_accounts(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW()
+        )""",
+        """CREATE TABLE IF NOT EXISTS budget_draft_cart_items (
+            id SERIAL PRIMARY KEY,
+            cart_id INTEGER NOT NULL REFERENCES budget_draft_carts(id) ON DELETE CASCADE,
+            wishlist_item_id INTEGER NOT NULL,
+            quantity INTEGER NOT NULL DEFAULT 1,
+            UNIQUE(cart_id, wishlist_item_id), CHECK (quantity >= 1 AND quantity <= 99)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_budget_cart_items_cart ON budget_draft_cart_items(cart_id)",
         """CREATE UNIQUE INDEX IF NOT EXISTS uq_budget_weekly_credit_date
            ON budget_ledger_entries(account_id, effective_date)
            WHERE entry_type = 'weekly_allowance'""",
