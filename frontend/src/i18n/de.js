@@ -43,6 +43,8 @@ const de = {
     sortBy: 'Karten sortieren',
     sortPriceAsc: 'Preis: aufsteigend',
     sortPriceDesc: 'Preis: absteigend',
+    sortLowToHigh: 'aufsteigend',
+    sortHighToLow: 'absteigend',
     sortOwnedFirst: 'Vorhandene zuerst',
     sortWishlistFirst: 'Wunschliste zuerst',
     sortSetNumber: 'Set und Kartennummer',
