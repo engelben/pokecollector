@@ -135,18 +135,11 @@ function FilterForm({ filters, setFilter, allSeries, setsForSeries, toggleSortOr
 }
 
 export default function CardSearch() {
-  const { t, settings, loaded: settingsLoaded } = useSettings()
+  const { t, settings } = useSettings()
   const visibleLanguages = useVisibleTcgdexLanguages()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
-  const artistParam = searchParams.get('artist') || ''
   const [searchInput, setSearchInput] = useState('')
-  const [filters, setFilters] = useState({
-    name: '', category: '', type: '', subtype: '', rarity: '', set_id: '', series: '', artist: artistParam,
-    hp_min: '', hp_max: '', sort_by: '', sort_order: 'asc',
-  })
-  const [langFilter, setLangFilter] = useState('all')
-  const [page, setPage] = useState(1)
   const [showFilters, setShowFilters] = useState(false)
   const [showCustomModal, setShowCustomModal] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
@@ -172,14 +165,56 @@ export default function CardSearch() {
   const defaultLangFilter = visibleLanguageCodes.includes(preferredCatalogueLanguage)
     ? preferredCatalogueLanguage
     : 'all'
+
+  // Search state is deliberately derived from the URL. This makes direct links,
+  // refreshes, and browser history reproduce precisely the same search.
+  const { filters, langFilter, page } = useMemo(() => {
+    const read = (key) => searchParams.get(key)?.trim() || ''
+    const enumValue = (key, values) => {
+      const value = read(key)
+      return values.includes(value) ? value : ''
+    }
+    const hpValue = (key) => {
+      const value = read(key)
+      return /^\d+$/.test(value) && Number(value) <= 999 ? value : ''
+    }
+    const selectedSeries = read('series')
+    const selectedSet = read('set_id')
+    const setIsValid = !selectedSet || !selectedSeries || !allSets.length || allSets.some((set) => set.id === selectedSet && set.series === selectedSeries)
+    const requestedLanguage = read('lang')
+    const language = requestedLanguage === 'all'
+      ? 'all'
+      : requestedLanguage && visibleLanguageCodes.includes(normalizeTcgdexLanguage(requestedLanguage, ''))
+        ? normalizeTcgdexLanguage(requestedLanguage, '')
+        : defaultLangFilter
+    const parsedPage = Number.parseInt(read('page'), 10)
+
+    return {
+      filters: {
+        name: read('q'),
+        category: enumValue('category', CATEGORIES),
+        type: enumValue('type', TYPES),
+        subtype: enumValue('subtype', SUBTYPES),
+        rarity: enumValue('rarity', RARITIES),
+        series: selectedSeries,
+        set_id: setIsValid ? selectedSet : '',
+        artist: read('artist'),
+        hp_min: hpValue('hp_min'),
+        hp_max: hpValue('hp_max'),
+        sort_by: enumValue('sort_by', ['name', 'number', 'rarity']),
+        sort_order: read('sort_order') === 'desc' ? 'desc' : 'asc',
+      },
+      langFilter: language,
+      page: Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1,
+    }
+  }, [allSets, defaultLangFilter, searchParams, visibleLanguageCodes])
+
   const setsForSeries = useMemo(() => {
     if (!filters.series) return allSets
     return allSets.filter(s => s.series === filters.series)
   }, [allSets, filters.series])
 
   const setMap = useMemo(() => {
-    // Keyed by both tcg_set_id (e.g. "sv1") and composite id (e.g. "sv1_de") so
-    // card.set_id (which stores the TCGdex set ID) resolves to the correct set object.
     const map = {}
     allSets.forEach(s => {
       if (s.tcg_set_id) map[s.tcg_set_id] = s
@@ -187,6 +222,17 @@ export default function CardSearch() {
     })
     return map
   }, [allSets])
+
+  const updateSearchParams = (updates, { replace = false, resetPage = true } = {}) => {
+    const next = new URLSearchParams(searchParams)
+    Object.entries(updates).forEach(([key, rawValue]) => {
+      const value = String(rawValue ?? '').trim()
+      if (!value || (key === 'sort_order' && value === 'asc')) next.delete(key)
+      else next.set(key, value)
+    })
+    if (resetPage) next.delete('page')
+    setSearchParams(next, { replace })
+  }
 
   const queryParams = {
     name: filters.name || undefined,
@@ -196,10 +242,10 @@ export default function CardSearch() {
     rarity: filters.rarity || undefined,
     set_id: filters.set_id || undefined,
     artist: filters.artist || undefined,
-    hp_min: filters.hp_min ? parseInt(filters.hp_min) : undefined,
-    hp_max: filters.hp_max ? parseInt(filters.hp_max) : undefined,
+    hp_min: filters.hp_min ? parseInt(filters.hp_min, 10) : undefined,
+    hp_max: filters.hp_max ? parseInt(filters.hp_max, 10) : undefined,
     sort_by: filters.sort_by || undefined,
-    sort_order: filters.sort_order || 'asc',
+    sort_order: filters.sort_order,
     lang: langFilter,
     page,
     page_size: pageSize,
@@ -208,7 +254,7 @@ export default function CardSearch() {
   const hasQuery = filters.name || filters.category || filters.type || filters.subtype || filters.rarity || filters.set_id || filters.artist || filters.hp_min || filters.hp_max || filters.series
 
   const { data, isLoading, error, isFetching } = useQuery({
-    queryKey: ['card-search', queryParams, langFilter],
+    queryKey: ['card-search', queryParams],
     queryFn: () => searchCards(queryParams).then(r => r.data),
     enabled: !!hasQuery,
     placeholderData: (prev) => prev,
@@ -218,67 +264,34 @@ export default function CardSearch() {
 
   const handleSearch = (e) => {
     e.preventDefault()
-    setFilters(prev => ({ ...prev, name: searchInput }))
-    setPage(1)
+    updateSearchParams({ q: searchInput })
   }
 
   const setFilter = (key, value) => {
-    setFilters(prev => {
-      const next = { ...prev, [key]: value }
-      if (key === 'series') {
-        const setStillValid = !value || allSets.find(s => s.id === prev.set_id && s.series === value)
-        if (!setStillValid) next.set_id = ''
-      }
-      return next
-    })
-    if (key === 'artist') {
-      const nextSearchParams = new URLSearchParams(searchParams)
-      if (value.trim()) nextSearchParams.set('artist', value)
-      else nextSearchParams.delete('artist')
-      setSearchParams(nextSearchParams, { replace: true })
+    const updates = { [key]: value }
+    if (key === 'series') {
+      const setStillValid = !value || allSets.some((set) => set.id === filters.set_id && set.series === value)
+      if (!setStillValid) updates.set_id = ''
     }
-    setPage(1)
+    // Text fields update URL state without creating one history entry per keystroke.
+    updateSearchParams(updates, { replace: ['artist', 'hp_min', 'hp_max'].includes(key) })
   }
 
-  const toggleSortOrder = () => {
-    setFilters(prev => ({ ...prev, sort_order: prev.sort_order === 'asc' ? 'desc' : 'asc' }))
-    setPage(1)
-  }
+  const toggleSortOrder = () => updateSearchParams({ sort_order: filters.sort_order === 'asc' ? 'desc' : 'asc' })
 
-  const clearFilters = () => {
-    setFilters({ name: '', category: '', type: '', subtype: '', rarity: '', set_id: '', series: '', artist: '', hp_min: '', hp_max: '', sort_by: '', sort_order: 'asc' })
-    setSearchInput('')
-    setLangFilter(defaultLangFilter)
-    const nextSearchParams = new URLSearchParams(searchParams)
-    nextSearchParams.delete('artist')
-    setSearchParams(nextSearchParams, { replace: true })
-    setPage(1)
-  }
+  const clearFilters = () => setSearchParams(new URLSearchParams())
 
-  const hasActiveFilters = !!(filters.category || filters.type || filters.subtype || filters.rarity || filters.set_id || filters.series || filters.artist || filters.hp_min || filters.hp_max || filters.sort_by)
-  const activeFilterCount = [filters.category, filters.type, filters.subtype, filters.rarity, filters.set_id, filters.series, filters.artist, filters.hp_min, filters.hp_max, filters.sort_by].filter(Boolean).length
-  const totalPages = data ? Math.ceil(data.total_count / pageSize) : 0
   const hasOpenOverlay = Boolean(selectedCard || showFilters || showCustomModal || showScanner)
 
   useEffect(() => {
-    setFilters(prev => prev.artist === artistParam ? prev : { ...prev, artist: artistParam })
-    setPage(1)
-  }, [artistParam])
+    setSearchInput(filters.name)
+  }, [filters.name])
 
   useEffect(() => {
-    if (!visibleLanguages.isLoading && langFilter !== 'all' && !visibleLanguageCodes.includes(langFilter)) {
-      setLangFilter(defaultLangFilter)
-      setPage(1)
-    }
-  }, [defaultLangFilter, langFilter, visibleLanguageCodes, visibleLanguages.isLoading])
-
-  useEffect(() => {
-    if (!settingsLoaded || visibleLanguages.isLoading) return
-    if (langFilter === 'all' && defaultLangFilter !== 'all' && !hasQuery) {
-      setLangFilter(defaultLangFilter)
-      setPage(1)
-    }
-  }, [defaultLangFilter, hasQuery, langFilter, settingsLoaded, visibleLanguages.isLoading])
+    // Once set data is available, remove a set that does not belong to its URL series.
+    if (!allSets.length || !filters.series || !searchParams.get('set_id') || filters.set_id) return
+    updateSearchParams({ set_id: '' }, { replace: true, resetPage: false })
+  }, [allSets.length, filters.series, filters.set_id, searchParams])
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -292,11 +305,11 @@ export default function CardSearch() {
       }
 
       if (event.key === 'ArrowLeft' && page > 1) {
-        setPage((current) => Math.max(1, current - 1))
+        updateSearchParams({ page: Math.max(1, page - 1) }, { resetPage: false })
         event.preventDefault()
       }
       if (event.key === 'ArrowRight' && totalPages > 0 && page < totalPages) {
-        setPage((current) => Math.min(totalPages, current + 1))
+        updateSearchParams({ page: Math.min(totalPages, page + 1) }, { resetPage: false })
         event.preventDefault()
       }
     }
@@ -465,7 +478,7 @@ export default function CardSearch() {
           allLabel={t('lang.all')}
           compact
           languages={visibleLanguages}
-          onChange={(value) => { setLangFilter(value); setPage(1) }}
+          onChange={(value) => updateSearchParams({ lang: value === defaultLangFilter ? '' : value })}
           className="select w-full sm:w-52 text-xs py-1.5"
         />
       </div>
@@ -516,7 +529,7 @@ export default function CardSearch() {
             )}
           </button>
 
-          {hasQuery && (
+          {hasUrlSearchState && (
             <button type="button" onClick={clearFilters} className="btn-ghost flex-shrink-0">
               <X size={16} />
               <span className="hidden sm:inline">{t('common.clear')}</span>
@@ -638,11 +651,11 @@ export default function CardSearch() {
             </p>
             {totalPages > 1 && (
               <div className="flex items-center gap-2">
-                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-ghost py-1.5 px-2 disabled:opacity-50">
+                <button onClick={() => updateSearchParams({ page: Math.max(1, page - 1) }, { resetPage: false })} disabled={page === 1} className="btn-ghost py-1.5 px-2 disabled:opacity-50">
                   <ChevronLeft size={16} />
                 </button>
                 <span className="text-sm text-text-secondary">{page} / {totalPages}</span>
-                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-ghost py-1.5 px-2 disabled:opacity-50">
+                <button onClick={() => updateSearchParams({ page: Math.min(totalPages, page + 1) }, { resetPage: false })} disabled={page === totalPages} className="btn-ghost py-1.5 px-2 disabled:opacity-50">
                   <ChevronRight size={16} />
                 </button>
               </div>
@@ -738,9 +751,7 @@ export default function CardSearch() {
         isOpen={showScanner}
         onClose={() => setShowScanner(false)}
         onCardSelected={(card) => {
-          setSearchInput(card.name)
-          setFilters(prev => ({ ...prev, name: card.name }))
-          setPage(1)
+          updateSearchParams({ q: card.name })
           setShowScanner(false)
         }}
       />
