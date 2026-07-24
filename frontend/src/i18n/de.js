@@ -423,6 +423,18 @@ const de = {
     allSets: 'Alle Sets',
     allRarities: 'Alle Seltenheiten',
     noResults: 'Keine Einträge gefunden',
+    gridView: 'Rasteransicht',
+    listView: 'Listenansicht',
+    viewMode: 'Ansicht der Wunschliste',
+    search: 'Wunschliste durchsuchen',
+    species: 'Pokémon-Art',
+    allSpecies: 'Alle Arten',
+    noMatchingCards: 'Keine passenden Karten',
+    resultCount: '{shown} von {total} Karten',
+    filters: 'Wunschlistenfilter',
+    priority: 'Priorität',
+    editCard: 'Wunschlistenkarte bearbeiten',
+    removeCard: 'Wunschlistenkarte entfernen',
   },
 
   // Binders
