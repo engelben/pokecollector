@@ -68,6 +68,22 @@ describe('getOwnedVariants', () => {
     expect(result).toEqual([{ variant: 'Normal', quantity: 2 }])
   })
 
+  it('accepts numeric API strings without concatenating quantities', () => {
+    const result = getOwnedVariants([
+      row({ id: 1, variant: 'Normal', quantity: '2' }),
+      row({ id: 2, variant: 'Normal', quantity: 1 }),
+    ])
+    expect(result).toEqual([{ variant: 'Normal', quantity: 3 }])
+  })
+
+  it('ignores negative and non-numeric quantities defensively', () => {
+    const result = getOwnedVariants([
+      row({ id: 1, variant: 'Normal', quantity: -2 }),
+      row({ id: 2, variant: 'Holo', quantity: 'not-a-number' }),
+    ])
+    expect(result).toEqual([])
+  })
+
   it('returns an empty array for no rows', () => {
     expect(getOwnedVariants([])).toEqual([])
   })

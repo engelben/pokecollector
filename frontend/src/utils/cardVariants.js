@@ -43,12 +43,14 @@ export const getDefaultVariantOrNull = (card) => getDefaultVariant(card)
 export const getOwnedVariants = (rows = []) => {
   const totals = new Map()
   for (const row of rows) {
+    const quantity = Number(row?.quantity)
+    if (!Number.isFinite(quantity) || quantity <= 0) continue
     const variant = row?.variant || 'Normal'
-    totals.set(variant, (totals.get(variant) || 0) + (row?.quantity || 0))
+    totals.set(variant, (totals.get(variant) || 0) + quantity)
   }
 
-  // Test the summed quantity, not key presence: a row with quantity 0 or null must not
-  // produce a pill claiming ownership of zero copies.
+  // Test the summed positive quantity, not key presence: malformed, zero, or
+  // negative rows must not produce a pill claiming ownership.
   const ordered = CARD_VARIANTS
     .filter(variant => totals.get(variant) > 0)
     .map(variant => ({ variant, quantity: totals.get(variant) }))

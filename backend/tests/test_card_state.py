@@ -1,9 +1,11 @@
 import unittest
+from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from database import Base
 from models import Card, CollectionItem, User, WishlistItem
+from schemas import CollectionItemCreate, CollectionItemUpdate
 from services.card_state import card_state_summaries
 
 
@@ -76,6 +78,36 @@ class CardStateSummaryTests(unittest.TestCase):
 
         self.assertFalse(summary["owned"])
         self.assertEqual(summary["owned_quantity"], 0)
+
+    def test_negative_existing_quantity_is_never_reported_as_owned(self):
+        item = CollectionItem(
+            card_id=self.card.id,
+            user_id=self.owner.id,
+            variant="Holo",
+            quantity=-2,
+        )
+
+        summary = card_state_summaries(
+            self.db,
+            self.owner.id,
+            [self.card.id],
+            collection_items=[item],
+        )[self.card.id]
+
+        self.assertFalse(summary["owned"])
+        self.assertEqual(summary["owned_quantity"], 0)
+        self.assertEqual(summary["owned_variants"], [])
+
+    def test_collection_requests_reject_impossible_quantities(self):
+        for model, payload in (
+            (CollectionItemCreate, {"card_id": self.card.id, "quantity": 0}),
+            (CollectionItemCreate, {"card_id": self.card.id, "quantity": 1000}),
+            (CollectionItemUpdate, {"quantity": -1}),
+            (CollectionItemUpdate, {"quantity": 1000}),
+        ):
+            with self.subTest(model=model.__name__, payload=payload):
+                with self.assertRaises(ValidationError):
+                    model(**payload)
 
 
 if __name__ == "__main__":

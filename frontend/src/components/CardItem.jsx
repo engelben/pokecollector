@@ -123,7 +123,7 @@ export function CustomCardModal({ onClose, onCreated, sets: setsProp = [], autoA
     mutationFn: (data) => updateCustomCard(editCard.id, data),
     onSuccess: (res) => {
       toast.success(t('settings.cardUpdated'))
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
       onCreated && onCreated(res)
       onClose()
@@ -138,12 +138,9 @@ export function CustomCardModal({ onClose, onCreated, sets: setsProp = [], autoA
     mutationFn: () => deleteCustomCard(editCard.id),
     onSuccess: (res) => {
       toast.success(res?.data?.message || t('common.success'))
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['custom-cards'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'pokedex' })
       onClose()
     },
     onError: (err) => {
@@ -156,10 +153,8 @@ export function CustomCardModal({ onClose, onCreated, sets: setsProp = [], autoA
     mutationFn: (data) => addToCollection(data),
     onSuccess: () => {
       toast.success(`${createdCard.name} ${t('card.addedToCollection')}`)
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
       onCreated && onCreated(createdCard)
       onClose()
     },
@@ -543,7 +538,7 @@ export const CardItem = memo(function CardItem({ card, showActions = true, onAdd
           editCard={card}
           onClose={() => setShowEditModal(false)}
           onCreated={() => {
-            queryClient.invalidateQueries({ queryKey: ['collection'] })
+            invalidateCardState(queryClient)
             invalidateTcgdexFilterLanguages(queryClient)
           }}
           sets={[]}
@@ -643,11 +638,8 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
       setSavedCustomImageUrl(nextUrl)
       setCustomImageVersion((version) => version + 1)
       toast.success(t('card.customImageSaved'))
-      queryClient.invalidateQueries({ queryKey: ['card-search'] })
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
-      queryClient.invalidateQueries({ queryKey: ['set-checklist'] })
     },
     onError: (err) => {
       const detail = err?.response?.data?.detail || t('common.error')
