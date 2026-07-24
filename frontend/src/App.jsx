@@ -12,6 +12,7 @@ const HomeScreen = lazy(() => import('./pages/HomeScreen'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const CardSearch = lazy(() => import('./pages/CardSearch'))
 const Collection = lazy(() => import('./pages/Collection'))
+const PhotoImport = lazy(() => import('./pages/PhotoImport'))
 const Pokedex = lazy(() => import('./pages/Pokedex'))
 const PokedexSpecies = lazy(() => import('./pages/PokedexSpecies'))
 const Sets = lazy(() => import('./pages/Sets'))
@@ -144,6 +145,7 @@ function ProtectedRoutes() {
         <Route path="dashboard" element={lazyRoute(<Dashboard />)} />
         <Route path="search" element={lazyRoute(<CardSearch />)} />
         <Route path="collection" element={lazyRoute(<Collection />)} />
+        <Route path="collection/photo-import" element={lazyRoute(<PhotoImport />)} />
         <Route path="pokedex" element={lazyRoute(<Pokedex />)} />
         <Route path="pokedex/:dexId" element={lazyRoute(<PokedexSpecies />)} />
         <Route path="collection/user/:userId" element={lazyRoute(<UserCollection />)} />

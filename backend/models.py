@@ -329,6 +329,30 @@ class BudgetDraftCartItem(Base):
         CheckConstraint("quantity >= 1 AND quantity <= 99", name="ck_budget_cart_item_quantity"),
     )
 
+class PhotoImportSession(Base):
+    __tablename__ = "photo_import_sessions"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    status = Column(String, nullable=False, default="draft")
+    layout = Column(String, nullable=False, default="3x3")
+    default_lang = Column(String, nullable=False, default="en")
+    default_condition = Column(String, nullable=False, default="NM")
+    default_variant = Column(String, nullable=False, default="Normal")
+    commit_mode = Column(String, nullable=False, default="add")
+    payload = Column(POKEDEX_JSON, nullable=False, default=lambda: {"images": [], "items": []})
+    commit_result = Column(POKEDEX_JSON)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    committed_at = Column(DateTime)
+
+    __table_args__ = (
+        CheckConstraint("status IN ('draft','processing','review','failed','committing','committed')", name="ck_photo_import_status"),
+        CheckConstraint("layout IN ('3x3','4x3','single')", name="ck_photo_import_layout"),
+        CheckConstraint("commit_mode IN ('add','set_scanned')", name="ck_photo_import_commit_mode"),
+    )
+
+
 class PriceHistory(Base):
     __tablename__ = "price_history"
 

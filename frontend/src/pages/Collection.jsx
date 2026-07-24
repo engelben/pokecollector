@@ -1,8 +1,8 @@
 import { useState, useMemo, useId, useRef, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Trash2, Check, X, Filter, SortAsc, Download, Upload, ChevronUp, ChevronDown, Search, PenLine, Grid2X2, List, Library, BookOpen, Heart, Copy, ArrowLeft, Package } from 'lucide-react'
+import { Trash2, Check, X, Filter, SortAsc, Download, Upload, ChevronUp, ChevronDown, Search, PenLine, Grid2X2, List, Library, BookOpen, Heart, Copy, ArrowLeft, Package, Camera } from 'lucide-react'
 import { getCollection, updateCollectionItem, updateCardCustomImage, removeFromCollection, importCollectionCsv, exportCSV, exportPDF, getSets, addToCollection, getBinders, addCollectionItemToBinder, getWishlist, getApiErrorMessage } from '../api/client'
 import { CustomCardModal } from '../components/CardItem'
 import { useSettings } from '../contexts/SettingsContext'
@@ -868,6 +868,7 @@ export default function Collection() {
   const csvImportInputRef = useRef(null)
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
 
   const { data: items = [], isLoading, error } = useQuery({
     queryKey: ['collection'],
@@ -1123,6 +1124,14 @@ export default function Collection() {
           <button onClick={() => setShowCustomModal(true)}
             className="btn-ghost text-sm py-1.5 border-yellow/30 text-yellow hover:bg-yellow/10">
             <PenLine size={14} /> {t('collection.addCustomCard')}
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/collection/photo-import')}
+            className="btn-ghost text-sm py-1.5 px-2"
+            title={t('photoImport.subtitle')}
+          >
+            <Camera size={14} /> {t('photoImport.bulkScan')}
           </button>
           <input
             ref={csvImportInputRef}

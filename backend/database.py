@@ -471,6 +471,26 @@ def _run_migrations(conn):
                OR COALESCE(images_logo, '') LIKE '%/tcgp/%'
                OR COALESCE(images_symbol, '') LIKE '%/tcgp/%'
              )""",
+        # v53: Resumable, idempotent bulk photo collection imports.
+        """CREATE TABLE IF NOT EXISTS photo_import_sessions (
+            id VARCHAR PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            status VARCHAR NOT NULL DEFAULT 'draft',
+            layout VARCHAR NOT NULL DEFAULT '3x3',
+            default_lang VARCHAR NOT NULL DEFAULT 'en',
+            default_condition VARCHAR NOT NULL DEFAULT 'NM',
+            default_variant VARCHAR NOT NULL DEFAULT 'Normal',
+            commit_mode VARCHAR NOT NULL DEFAULT 'add',
+            payload JSONB NOT NULL DEFAULT '{"images": [], "items": []}'::jsonb,
+            commit_result JSONB,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            committed_at TIMESTAMP,
+            CONSTRAINT ck_photo_import_status CHECK (status IN ('draft','processing','review','failed','committing','committed')),
+            CONSTRAINT ck_photo_import_layout CHECK (layout IN ('3x3','4x3','single')),
+            CONSTRAINT ck_photo_import_commit_mode CHECK (commit_mode IN ('add','set_scanned'))
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_photo_import_sessions_user_updated ON photo_import_sessions(user_id, updated_at DESC)",
         """UPDATE cards
            SET is_digital = TRUE
            WHERE COALESCE(is_digital, FALSE) = FALSE
