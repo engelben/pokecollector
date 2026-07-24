@@ -24,7 +24,7 @@ function TrainerAvatar({ avatarId, username }) {
 export default function Achievements() {
   const { userId } = useParams()
   const navigate = useNavigate()
-  const { user, multiUser } = useAuth()
+  const { user, hasMultipleCollectors } = useAuth()
   const { t, pricePrimaryField } = useSettings()
   const SOCIAL_TABS = [
     { to: '/leaderboard', label: t('nav.leaderboard'), icon: Trophy },
@@ -45,7 +45,7 @@ export default function Achievements() {
     return `${earned}/${total} ${t('achievements.earned')}`
   }, [data, t])
 
-  if (!multiUser) {
+  if (!hasMultipleCollectors) {
     return <Navigate to="/" replace />
   }
 

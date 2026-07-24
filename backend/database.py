@@ -200,6 +200,14 @@ def _run_migrations(conn):
         "ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)",
         "ALTER TABLE portfolio_snapshots ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT false",
+        # v53: Managed collector profiles share one login while keeping separate user-scoped data.
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS managed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS login_enabled BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_pin_hash VARCHAR",
+        "UPDATE users SET login_enabled = TRUE WHERE login_enabled IS NULL",
+        "ALTER TABLE users ALTER COLUMN login_enabled SET DEFAULT TRUE",
+        "ALTER TABLE users ALTER COLUMN login_enabled SET NOT NULL",
+        "CREATE INDEX IF NOT EXISTS idx_users_managed_by ON users(managed_by_user_id)",
         # v43: Track when card prices/images/data are copied from another language.
         "ALTER TABLE cards ADD COLUMN IF NOT EXISTS price_source_lang VARCHAR",
         "ALTER TABLE cards ADD COLUMN IF NOT EXISTS image_source_lang VARCHAR",
@@ -313,6 +321,103 @@ def _run_migrations(conn):
         "ALTER TABLE product_ledger_entries DROP CONSTRAINT IF EXISTS ck_product_ledger_entry_type",
         "ALTER TABLE product_ledger_entries DROP CONSTRAINT IF EXISTS product_ledger_entries_entry_type_check",
         "ALTER TABLE product_ledger_entries ADD CONSTRAINT ck_product_ledger_entry_type CHECK (entry_type IN ('card_sale', 'flat_gain', 'adjustment', 'trade_out'))",
+        # v54: Collector allowance wallet, immutable ledger and purchase planning.
+        """CREATE TABLE IF NOT EXISTS budget_accounts (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+            currency VARCHAR NOT NULL DEFAULT 'EUR',
+            weekly_credit_cents INTEGER NOT NULL DEFAULT 500,
+            next_credit_date DATE,
+            credit_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+            season_end_date DATE,
+            source_wishlist_ids JSON NOT NULL DEFAULT '[]',
+            parent_covers_shipping BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            CHECK (weekly_credit_cents >= 0)
+        )""",
+        """CREATE TABLE IF NOT EXISTS budget_purchase_plans (
+            id SERIAL PRIMARY KEY,
+            account_id INTEGER NOT NULL REFERENCES budget_accounts(id) ON DELETE CASCADE,
+            status VARCHAR NOT NULL DEFAULT 'draft',
+            estimated_card_total_cents INTEGER NOT NULL DEFAULT 0,
+            actual_card_total_cents INTEGER,
+            shipping_cents INTEGER NOT NULL DEFAULT 0,
+            charge_shipping_to_wallet BOOLEAN NOT NULL DEFAULT FALSE,
+            created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            approved_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            note TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            confirmed_at TIMESTAMP,
+            cancelled_at TIMESTAMP,
+            CHECK (status IN ('draft', 'pending_approval', 'confirmed', 'cancelled')),
+            CHECK (estimated_card_total_cents >= 0),
+            CHECK (actual_card_total_cents IS NULL OR actual_card_total_cents >= 0),
+            CHECK (shipping_cents >= 0)
+        )""",
+        """CREATE TABLE IF NOT EXISTS budget_ledger_entries (
+            id SERIAL PRIMARY KEY,
+            account_id INTEGER NOT NULL REFERENCES budget_accounts(id) ON DELETE CASCADE,
+            amount_cents INTEGER NOT NULL,
+            entry_type VARCHAR NOT NULL,
+            effective_date DATE NOT NULL,
+            created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            purchase_plan_id INTEGER REFERENCES budget_purchase_plans(id) ON DELETE SET NULL,
+            note TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            CHECK (entry_type IN ('weekly_allowance', 'parent_adjustment', 'gift', 'purchase', 'refund', 'correction'))
+        )""",
+        """CREATE TABLE IF NOT EXISTS budget_purchase_plan_items (
+            id SERIAL PRIMARY KEY,
+            purchase_plan_id INTEGER NOT NULL REFERENCES budget_purchase_plans(id) ON DELETE CASCADE,
+            wishlist_item_id INTEGER,
+            card_id VARCHAR REFERENCES cards(id) ON DELETE SET NULL,
+            quantity INTEGER NOT NULL DEFAULT 1,
+            estimated_unit_price_cents INTEGER NOT NULL DEFAULT 0,
+            actual_unit_price_cents INTEGER,
+            purchase_rule_snapshot VARCHAR NOT NULL DEFAULT 'purchase_allowed',
+            card_name_snapshot VARCHAR NOT NULL,
+            set_name_snapshot VARCHAR,
+            cardmarket_url_snapshot VARCHAR,
+            CHECK (quantity >= 1),
+            CHECK (estimated_unit_price_cents >= 0),
+            CHECK (actual_unit_price_cents IS NULL OR actual_unit_price_cents >= 0)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_budget_ledger_account_date ON budget_ledger_entries(account_id, effective_date DESC, id DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_budget_plans_account_status ON budget_purchase_plans(account_id, status, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_budget_plan_items_plan ON budget_purchase_plan_items(purchase_plan_id)",
+        # v55: durable wishlist shopping cart; plans remain the approval/audit record.
+        """CREATE TABLE IF NOT EXISTS budget_draft_carts (
+            id SERIAL PRIMARY KEY,
+            account_id INTEGER NOT NULL UNIQUE REFERENCES budget_accounts(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW()
+        )""",
+        """CREATE TABLE IF NOT EXISTS budget_draft_cart_items (
+            id SERIAL PRIMARY KEY,
+            cart_id INTEGER NOT NULL REFERENCES budget_draft_carts(id) ON DELETE CASCADE,
+            wishlist_item_id INTEGER NOT NULL,
+            quantity INTEGER NOT NULL DEFAULT 1,
+            UNIQUE(cart_id, wishlist_item_id), CHECK (quantity >= 1 AND quantity <= 99)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_budget_cart_items_cart ON budget_draft_cart_items(cart_id)",
+        # v56: carts are card-centric. Reconcile legacy wishlist rows before indexing.
+        "ALTER TABLE budget_draft_cart_items ADD COLUMN IF NOT EXISTS card_id VARCHAR",
+        "ALTER TABLE budget_draft_cart_items ADD COLUMN IF NOT EXISTS card_name_snapshot VARCHAR",
+        "ALTER TABLE budget_draft_cart_items ADD COLUMN IF NOT EXISTS set_name_snapshot VARCHAR",
+        "ALTER TABLE budget_draft_cart_items ADD COLUMN IF NOT EXISTS card_number_snapshot VARCHAR",
+        "ALTER TABLE budget_draft_cart_items ADD COLUMN IF NOT EXISTS image_snapshot VARCHAR",
+        "ALTER TABLE budget_draft_cart_items ADD COLUMN IF NOT EXISTS estimated_unit_price_cents INTEGER",
+        "ALTER TABLE budget_draft_cart_items ADD COLUMN IF NOT EXISTS cardmarket_url_snapshot VARCHAR",
+        "ALTER TABLE budget_draft_cart_items ALTER COLUMN wishlist_item_id DROP NOT NULL",
+        "UPDATE budget_draft_cart_items ci SET card_id = w.card_id FROM wishlist w WHERE ci.card_id IS NULL AND ci.wishlist_item_id = w.id",
+        "DELETE FROM budget_draft_cart_items WHERE card_id IS NULL",
+        """WITH grouped AS (SELECT cart_id, card_id, MIN(id) AS keep_id, LEAST(99, SUM(quantity)) AS total FROM budget_draft_cart_items WHERE card_id IS NOT NULL GROUP BY cart_id, card_id HAVING COUNT(*) > 1) UPDATE budget_draft_cart_items i SET quantity = grouped.total FROM grouped WHERE i.id = grouped.keep_id""",
+        "DELETE FROM budget_draft_cart_items a USING budget_draft_cart_items b WHERE a.cart_id=b.cart_id AND a.card_id=b.card_id AND a.id>b.id",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_budget_cart_card ON budget_draft_cart_items(cart_id, card_id)",
+
+        """CREATE UNIQUE INDEX IF NOT EXISTS uq_budget_weekly_credit_date
+           ON budget_ledger_entries(account_id, effective_date)
+           WHERE entry_type = 'weekly_allowance'""",
         # v51: Trade logger with durable value snapshots.
         """CREATE TABLE IF NOT EXISTS trades (
             id SERIAL PRIMARY KEY,
