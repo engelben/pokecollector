@@ -423,6 +423,18 @@ const en = {
     allSets: 'All Sets',
     allRarities: 'All Rarities',
     noResults: 'No items found',
+    gridView: 'Grid view',
+    listView: 'List view',
+    viewMode: 'Wishlist display mode',
+    search: 'Search wishlist',
+    species: 'Species',
+    allSpecies: 'All species',
+    noMatchingCards: 'No matching cards',
+    resultCount: '{shown} of {total} cards',
+    filters: 'Wishlist filters',
+    priority: 'Priority',
+    editCard: 'Edit wishlist card',
+    removeCard: 'Remove wishlist card',
   },
 
   // Binders

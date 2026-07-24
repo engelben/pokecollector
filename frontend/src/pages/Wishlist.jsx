@@ -1,12 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Archive, Check, Copy, Download, Edit2, ExternalLink, Heart, Library,
-  Minus, MoveRight, Plus, Save, Trash2, X,
+  Grid2X2, List, Minus, MoveRight, Plus, Save, Search, Trash2, X,
 } from 'lucide-react'
 import {
   addToCollection, createWishlist, deleteWishlist, exportWishlist,
-  getWishlistItems, getWishlists, removeFromWishlist, transferWishlistItem,
+  getWishlistItems, getWishlists, getPokedex, removeFromWishlist, transferWishlistItem,
   updateWishlist, updateWishlistItem,
 } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
@@ -16,6 +16,7 @@ import TabNav from '../components/TabNav'
 import { getEffectiveCardPrice } from '../utils/prices'
 import { resolveCardImageUrl } from '../utils/imageUrl'
 import { invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
+import { normalizeSearchText } from '../utils/textSearch'
 import toast from 'react-hot-toast'
 
 const PURCHASE_RULES = [
@@ -24,6 +25,27 @@ const PURCHASE_RULES = [
   ['season_end_purchase', 'Season-end purchase'],
   ['parent_approval_required', 'Parent approval required'],
 ]
+
+function normalizeDexIds(value) {
+  const rawValues = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[;,\s]+/) : [value]
+  return [...new Set(rawValues.map(Number).filter(id => Number.isInteger(id) && id > 0))]
+}
+
+function isPokemonCard(card) {
+  return String(card?.category || card?.supertype || '').toLowerCase() === 'pokemon'
+}
+
+function WishlistActions({ item, onEdit, onRemove, onAddToCollection, t }) {
+  return (
+    <div className="mt-3 flex flex-wrap gap-2" data-cart-action-area="wishlist-card">
+      {/* BudgetCartButton is intentionally composed here after the wallet feature is integrated. */}
+      <button type="button" className="btn-ghost min-h-10 py-1.5" onClick={onEdit} aria-label={t('wishlist.editCard')}><Edit2 size={15} /> {t('common.edit')}</button>
+      {item.cardmarket_url && <a className="btn-ghost min-h-10 py-1.5" href={item.cardmarket_url} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Cardmarket</a>}
+      <button type="button" className="btn-ghost min-h-10 py-1.5" onClick={onAddToCollection}><Plus size={15} /> {t('wishlist.addToCollection')}</button>
+      <button type="button" className="btn-ghost min-h-10 py-1.5 text-brand-red" onClick={onRemove} aria-label={t('wishlist.removeCard')}><Trash2 size={15} /> <span className="sr-only">{t('wishlist.removeCard')}</span></button>
+    </div>
+  )
+}
 
 function downloadBlob(blob, filename) {
   const url = window.URL.createObjectURL(blob)
@@ -174,13 +196,20 @@ function ItemEditor({ item, lists, onClose }) {
 }
 
 export default function Wishlist() {
-  const { t, formatPrice, pricePrimaryField } = useSettings()
+  const { t, formatPrice, pricePrimaryField, settings } = useSettings()
   const queryClient = useQueryClient()
   const [selectedId, setSelectedId] = useState(null)
   const [editingList, setEditingList] = useState(null)
   const [creatingList, setCreatingList] = useState(false)
   const [editingItemId, setEditingItemId] = useState(null)
   const [affordableMax, setAffordableMax] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [speciesId, setSpeciesId] = useState('')
+  const [viewMode, setViewMode] = useState(() => {
+    const saved = window.localStorage.getItem('wishlist-view')
+    if (saved === 'grid' || saved === 'list') return saved
+    return window.matchMedia('(max-width: 767px)').matches ? 'grid' : 'list'
+  })
 
   const listsQuery = useQuery({ queryKey: ['wishlists'], queryFn: getWishlists })
   const lists = listsQuery.data || []
@@ -194,17 +223,42 @@ export default function Wishlist() {
     enabled: Boolean(activeList?.id),
   })
   const items = itemsQuery.data || []
+  const language = settings.language === 'de' ? 'de' : 'en'
+  const pokedexQuery = useQuery({
+    queryKey: ['pokedex', 'wishlist-species', language],
+    queryFn: () => getPokedex({ status: 'all', lang: language }),
+    staleTime: 60 * 60 * 1000,
+  })
+  const speciesById = useMemo(() => new Map((pokedexQuery.data?.entries || []).map(entry => [entry.dex_id, language === 'de' ? entry.name_de : entry.name_en])), [pokedexQuery.data, language])
+  const speciesOptions = useMemo(() => [...new Set(items
+    .filter(item => isPokemonCard(item.card))
+    .flatMap(item => normalizeDexIds(item.card?.dex_ids)))]
+    .sort((a, b) => a - b)
+    .map(id => ({ id, name: speciesById.get(id) || `#${String(id).padStart(3, '0')}` })), [items, speciesById])
+
+  useEffect(() => { window.localStorage.setItem('wishlist-view', viewMode) }, [viewMode])
+  useEffect(() => {
+    if (speciesId && !speciesOptions.some(option => String(option.id) === speciesId)) setSpeciesId('')
+  }, [activeList?.id, speciesId, speciesOptions])
 
   const visibleItems = useMemo(() => {
     const max = affordableMax === '' ? null : Number(affordableMax)
+    const search = normalizeSearchText(searchTerm)
+    const selectedSpecies = Number(speciesId)
     return [...items]
       .filter(item => {
+        const card = item.card || {}
+        const dexIds = normalizeDexIds(card.dex_ids)
+        const speciesNames = dexIds.map(id => speciesById.get(id) || '')
+        const searchable = [card.name, card.set_ref?.name, card.set_name, card.set_id, card.number, card.artist, ...speciesNames].map(normalizeSearchText).join(' ')
+        if (search && !searchable.includes(search)) return false
+        if (speciesId && (!isPokemonCard(card) || !dexIds.includes(selectedSpecies))) return false
         if (max == null || Number.isNaN(max)) return true
-        const price = getEffectiveCardPrice(item.card, item.desired_variant === 'Any' ? null : item.desired_variant, pricePrimaryField)
+        const price = getEffectiveCardPrice(card, item.desired_variant === 'Any' ? null : item.desired_variant, pricePrimaryField)
         return price != null && price <= max
       })
       .sort((a, b) => (b.priority || 0) - (a.priority || 0) || String(a.card?.name || '').localeCompare(String(b.card?.name || '')))
-  }, [items, affordableMax, pricePrimaryField])
+  }, [items, affordableMax, pricePrimaryField, searchTerm, speciesId, speciesById])
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['wishlist-items'] })
@@ -291,49 +345,55 @@ export default function Wishlist() {
             </div>
           )}
 
+          <section className="card space-y-3" aria-label={t('wishlist.filters')}>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(180px,240px)_auto] sm:items-end">
+              <label className="block text-xs text-text-muted">{t('wishlist.search')}
+                <span className="relative mt-1 block"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" /><input className="input w-full pl-9" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={t('wishlist.search')} /></span>
+              </label>
+              <label className="block text-xs text-text-muted">{t('wishlist.species')}
+                <select className="select mt-1 w-full" value={speciesId} onChange={(event) => setSpeciesId(event.target.value)}>
+                  <option value="">{t('wishlist.allSpecies')}</option>
+                  {speciesOptions.map(option => <option key={option.id} value={option.id}>#{String(option.id).padStart(3, '0')} {option.name}</option>)}
+                </select>
+              </label>
+              <div className="flex rounded-lg border border-border p-1" role="group" aria-label={t('wishlist.viewMode')}>
+                <button type="button" className={`min-h-10 rounded-md px-3 ${viewMode === 'grid' ? 'bg-brand-red text-white' : 'text-text-muted'}`} onClick={() => setViewMode('grid')} aria-label={t('wishlist.gridView')} aria-pressed={viewMode === 'grid'}><Grid2X2 size={18} /></button>
+                <button type="button" className={`min-h-10 rounded-md px-3 ${viewMode === 'list' ? 'bg-brand-red text-white' : 'text-text-muted'}`} onClick={() => setViewMode('list')} aria-label={t('wishlist.listView')} aria-pressed={viewMode === 'list'}><List size={18} /></button>
+              </div>
+            </div>
+            <p className="text-sm font-medium text-text-secondary">{t('wishlist.resultCount').replace('{shown}', visibleItems.length).replace('{total}', items.length)}</p>
+          </section>
+
           {itemsQuery.isLoading ? (
             <div className="flex justify-center py-20"><PokeBallLoader size={44} /></div>
           ) : visibleItems.length === 0 ? (
-            <div className="card py-16 text-center text-text-muted">No cards in this wishlist.</div>
-          ) : visibleItems.map(item => {
-            const card = item.card
-            const price = getEffectiveCardPrice(card, item.desired_variant === 'Any' ? null : item.desired_variant, pricePrimaryField)
-            const isEditing = editingItemId === item.id
-            return (
-              <article key={item.id} className="card">
-                <div className="flex gap-3">
-                  <div className="h-24 w-16 shrink-0 overflow-hidden rounded-lg bg-bg-elevated">
-                    <CardImage src={resolveCardImageUrl(card)} alt={card?.name} className="h-full w-full object-cover" />
+            <div className="card py-16 text-center text-text-muted">{items.length ? t('wishlist.noMatchingCards') : t('wishlist.empty')}</div>
+          ) : (
+            <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4' : 'space-y-3'}>
+              {visibleItems.map(item => {
+                const card = item.card || {}
+                const price = getEffectiveCardPrice(card, item.desired_variant === 'Any' ? null : item.desired_variant, pricePrimaryField)
+                const isEditing = editingItemId === item.id
+                const metadata = <>
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                    {item.priority > 0 && <span className="rounded-full bg-gold/10 px-2 py-1 text-gold">{t('wishlist.priority')} {item.priority}/5</span>}
+                    <span className="rounded-full bg-bg-elevated px-2 py-1 text-text-secondary">{PURCHASE_RULES.find(([value]) => value === item.purchase_rule)?.[1] || item.purchase_rule}</span>
+                    <span className="rounded-full bg-bg-elevated px-2 py-1 text-text-secondary">{item.desired_variant} · {item.desired_condition}</span>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <h3 className="font-bold text-text-primary">{card?.name}</h3>
-                        <p className="text-xs text-text-muted">{card?.set_ref?.name || card?.set_id} · #{card?.number} · {card?.lang?.toUpperCase()}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-gold">{price == null ? '—' : formatPrice(price)}</p>
-                        <p className="text-xs text-text-muted">×{item.quantity}</p>
-                      </div>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-                      {item.priority > 0 && <span className="rounded-full bg-gold/10 px-2 py-1 text-gold">Priority {item.priority}/5</span>}
-                      <span className="rounded-full bg-bg-elevated px-2 py-1 text-text-secondary">{PURCHASE_RULES.find(([value]) => value === item.purchase_rule)?.[1] || item.purchase_rule}</span>
-                      <span className="rounded-full bg-bg-elevated px-2 py-1 text-text-secondary">{item.desired_variant} · {item.desired_condition}</span>
-                      {(item.purpose_labels || []).map(label => <span key={label} className="rounded-full bg-brand-red/10 px-2 py-1 text-brand-red">{label}</span>)}
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button type="button" className="btn-ghost py-1.5" onClick={() => setEditingItemId(isEditing ? null : item.id)}><Edit2 size={14} /> Edit</button>
-                      <a className="btn-ghost py-1.5" href={item.cardmarket_url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Cardmarket</a>
-                      <button type="button" className="btn-ghost py-1.5" onClick={() => collectionMutation.mutate(item)}><Plus size={14} /> Collection</button>
-                      <button type="button" className="btn-ghost py-1.5 text-brand-red" onClick={() => window.confirm('Remove from wishlist?') && deleteItemMutation.mutate(item.id)}><Trash2 size={14} /></button>
-                    </div>
-                  </div>
-                </div>
-                {isEditing && <ItemEditor item={item} lists={lists} onClose={() => setEditingItemId(null)} />}
-              </article>
-            )
-          })}
+                  <WishlistActions item={item} onEdit={() => setEditingItemId(isEditing ? null : item.id)} onRemove={() => window.confirm(t('wishlist.removeConfirm')) && deleteItemMutation.mutate(item.id)} onAddToCollection={() => collectionMutation.mutate(item)} t={t} />
+                </>
+                return viewMode === 'grid' ? (
+                  <article key={item.id} className="card flex min-w-0 flex-col p-3">
+                    <div className="aspect-[0.715] overflow-hidden rounded-lg bg-bg-elevated shadow-lg"><CardImage src={resolveCardImageUrl(card)} alt={card.name} className="h-full w-full object-cover" /></div>
+                    <div className="mt-3 min-w-0"><h3 className="truncate font-bold text-text-primary">{card.name}</h3><p className="truncate text-xs text-text-muted">{card.set_ref?.name || card.set_id} · #{card.number}</p><div className="mt-2 flex items-center justify-between"><span className="font-bold text-gold">{price == null ? '—' : formatPrice(price)}</span><span className="text-xs text-text-muted">×{item.quantity}</span></div>{metadata}</div>
+                    {isEditing && <ItemEditor item={item} lists={lists} onClose={() => setEditingItemId(null)} />}
+                  </article>
+                ) : (
+                  <article key={item.id} className="card"><div className="flex gap-3"><div className="h-32 w-24 shrink-0 overflow-hidden rounded-lg bg-bg-elevated"><CardImage src={resolveCardImageUrl(card)} alt={card.name} className="h-full w-full object-cover" /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-bold text-text-primary">{card.name}</h3><p className="text-xs text-text-muted">{card.set_ref?.name || card.set_id} · #{card.number} · {card.lang?.toUpperCase()}</p></div><div className="text-right"><p className="font-bold text-gold">{price == null ? '—' : formatPrice(price)}</p><p className="text-xs text-text-muted">×{item.quantity}</p></div></div>{metadata}</div></div>{isEditing && <ItemEditor item={item} lists={lists} onClose={() => setEditingItemId(null)} />}</article>
+                )
+              })}
+            </div>
+          )}
         </main>
       </div>
     </div>
