@@ -2,8 +2,9 @@ import { useState, useEffect, useId, memo } from 'react'
 import { createPortal } from 'react-dom'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Plus, Heart, BookOpen, X, PenLine, Pencil, Trash2, ExternalLink } from 'lucide-react'
-import { addToCollection, addToWishlist, createCustomCard, updateCustomCard, updateCardCustomImage, deleteCustomCard, getSets, getPriceHistory } from '../api/client'
+import { Plus, Check, Heart, BookOpen, X, PenLine, Pencil, Trash2, ExternalLink } from 'lucide-react'
+import BudgetCartButton from './BudgetCartButton'
+import { addToCollection, addToWishlist, createCustomCard, updateCustomCard, updateCardCustomImage, deleteCustomCard, getSets, getPriceHistory, getBudgetSummary } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
@@ -497,7 +498,8 @@ export const CardItem = memo(function CardItem({ card, showActions = true, onAdd
         </div>
 
         {showActions && (
-          <div className="mt-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="mt-3 flex gap-1.5">
+            <BudgetCartButton cardId={card.id} />
             <button
               className="flex-1 bg-brand-red/20 hover:bg-brand-red/40 text-brand-red text-xs py-1.5 rounded-lg font-medium transition-all flex items-center justify-center gap-1"
               onClick={(e) => {
@@ -562,6 +564,7 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
   const customImageInputId = useId()
   const { t, formatPrice, formatUsdPrice, pricePrimary, pricePrimaryField, exchangeRate, exchangeRateReady } = useSettings()
   const queryClient = useQueryClient()
+  const walletQuery = useQuery({ queryKey: ['budget-summary', null], queryFn: () => getBudgetSummary() })
 
   // Price history chart
   const cardIdForHistory = card?.card_id || (typeof card?.id === 'string' ? card.id : null)
@@ -1028,10 +1031,11 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
                 })} disabled={addMutation.isPending || !exchangeRateReady}>
                   <Plus size={16} /> {addMutation.isPending ? t('card.adding') : t('card.addToCollection')}
                 </button>
-                <button className="btn-ghost" onClick={() => wishlistMutation.mutate({ card_id: card.id, quantity: Math.max(1, Math.min(99, quantity)) })}
+                <button className="btn-ghost flex-1" aria-label={t('card.addToWishlist')} onClick={() => wishlistMutation.mutate({ card_id: card.id, quantity: Math.max(1, Math.min(99, quantity)) })}
                   disabled={wishlistMutation.isPending}>
-                  <Heart size={16} />
+                  <Heart size={16} /> <span>{t('card.addToWishlist')}</span>
                 </button>
+                <BudgetCartButton cardId={card.id} enabled={Boolean(walletQuery.data?.enabled)} modal />
                 {card.is_custom && onEdit && (
                   <button
                     className="btn-ghost text-yellow border-yellow/30 hover:bg-yellow/10 flex items-center gap-1.5"

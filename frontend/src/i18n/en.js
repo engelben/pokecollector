@@ -9,6 +9,7 @@ const en = {
     pokedex: 'Pokédex',
     sets: 'Sets',
     wishlist: 'Wishlist',
+    wallet: 'Allowance wallet',
     binders: 'Binders',
     analytics: 'Analytics',
     leaderboard: 'Leaderboard',
@@ -56,6 +57,21 @@ const en = {
     openProduct: 'Open exact product',
     search: 'Search Cardmarket',
     searchFallback: 'No exact product ID is stored; this opens a set and collector-number search.',
+  },
+
+  allowanceCart: {
+    addToCart: 'Add to cart',
+    inCart: 'In cart',
+    awaitingApproval: 'Awaiting approval',
+    removeFromCart: 'Remove from cart',
+    increaseQuantity: 'Increase quantity',
+    decreaseQuantity: 'Decrease quantity',
+    title: 'Wishlist cart',
+    add: 'Add to wishlist cart',
+    alreadyAdded: 'Already in wishlist cart',
+    empty: 'Your cart is empty. Add cards from your wishlist.',
+    total: 'Estimated total',
+    submit: 'Save basket for approval',
   },
 
   // Common / General

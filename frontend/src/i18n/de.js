@@ -9,6 +9,7 @@ const de = {
     pokedex: 'Pokédex',
     sets: 'Sets',
     wishlist: 'Wunschliste',
+    wallet: 'Taschengeld',
     binders: 'Binder',
     analytics: 'Analyse',
     leaderboard: 'Rangliste',
@@ -56,6 +57,21 @@ const de = {
     openProduct: 'Genaues Produkt öffnen',
     search: 'Cardmarket durchsuchen',
     searchFallback: 'Keine genaue Produkt-ID gespeichert; es wird nach Set und Kartennummer gesucht.',
+  },
+
+  allowanceCart: {
+    addToCart: 'In den Warenkorb',
+    inCart: 'Im Warenkorb',
+    awaitingApproval: 'Wartet auf Freigabe',
+    removeFromCart: 'Aus dem Warenkorb entfernen',
+    increaseQuantity: 'Menge erhöhen',
+    decreaseQuantity: 'Menge verringern',
+    title: 'Wunschlisten-Warenkorb',
+    add: 'Zum Wunschlisten-Warenkorb hinzufügen',
+    alreadyAdded: 'Bereits im Wunschlisten-Warenkorb',
+    empty: 'Dein Warenkorb ist leer. Füge Karten aus deiner Wunschliste hinzu.',
+    total: 'Geschätzte Summe',
+    submit: 'Korb zur Freigabe speichern',
   },
 
   // Common / General

@@ -196,6 +196,24 @@ export const exportBinderCsv = (binderId) => {
 // Dashboard
 export const getDashboard = (params) => api.get('/dashboard/', { params })
 
+// Allowance wallet
+export const getBudgetSummary = (userId = null) => api.get('/budget/summary', { params: userId ? { user_id: userId } : {} }).then(r => r.data)
+export const upsertBudgetAccount = (data) => api.put('/budget/account', data).then(r => r.data)
+export const getBudgetLedger = (userId = null) => api.get('/budget/ledger', { params: userId ? { user_id: userId } : {} }).then(r => r.data)
+export const addBudgetLedgerEntry = (data) => api.post('/budget/ledger', data).then(r => r.data)
+export const getBudgetSuggestions = (userId = null) => api.get('/budget/suggestions', { params: userId ? { user_id: userId } : {} }).then(r => r.data)
+export const getBudgetCart = (userId = null) => api.get('/budget/cart', { params: userId ? { user_id: userId } : {} }).then(r => r.data)
+export const postBudgetCartItem = (data) => api.post('/budget/cart/items', data).then(r => r.data)
+export const putBudgetCartItem = (data) => api.put('/budget/cart/items', data).then(r => r.data)
+export const removeBudgetCartItem = (cardId, userId = null) => api.delete(`/budget/cart/items/${encodeURIComponent(cardId)}`, { params: userId ? { user_id: userId } : {} }).then(r => r.data)
+export const submitBudgetCart = (userId = null) => api.post('/budget/cart/submit', null, { params: userId ? { user_id: userId } : {} }).then(r => r.data)
+export const getBudgetWishlistSources = (userId = null) => api.get('/budget/wishlist-sources', { params: userId ? { user_id: userId } : {} }).then(r => r.data)
+export const createBudgetPlan = (data) => api.post('/budget/plans', data).then(r => r.data)
+export const getBudgetPlans = (userId = null) => api.get('/budget/plans', { params: userId ? { user_id: userId } : {} }).then(r => r.data)
+export const submitBudgetPlan = (id, data = {}) => api.post(`/budget/plans/${id}/submit`, data).then(r => r.data)
+export const confirmBudgetPlan = (id, data) => api.post(`/budget/plans/${id}/confirm`, data).then(r => r.data)
+export const cancelBudgetPlan = (id) => api.post(`/budget/plans/${id}/cancel`).then(r => r.data)
+
 // Analytics
 export const getDuplicates = (params = {}) => api.get('/analytics/duplicates', { params })
 export const getTopMovers = (days, params = {}) => api.get('/analytics/top-movers', { params: { ...params, days } })
