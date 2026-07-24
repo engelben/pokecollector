@@ -53,6 +53,16 @@ export const changeAvatar = (avatarId) => api.put('/auth/me/avatar', { avatar_id
 export const changeUsername = (username) => api.put('/auth/me/username', { username }).then(r => r.data)
 
 
+// Managed collector profiles
+export const getCollectorProfiles = () => api.get('/auth/profiles').then(r => r.data)
+export const createCollectorProfile = (data) => api.post('/auth/profiles', data).then(r => r.data)
+export const updateCollectorProfile = (id, data) => api.put(`/auth/profiles/${id}`, data).then(r => r.data)
+export const setCollectorProfilePin = (id, pin) => api.put(`/auth/profiles/${id}/pin`, { pin }).then(r => r.data)
+export const deleteCollectorProfile = (id, confirmUsername) => api.delete(`/auth/profiles/${id}`, { params: { confirm_username: confirmUsername } }).then(r => r.data)
+export const switchCollectorProfile = (id) => api.post(`/auth/profiles/${id}/switch`).then(r => r.data)
+export const switchBackCollectorProfile = (pin = null) => api.post('/auth/profiles/switch-back', { pin }).then(r => r.data)
+
+
 const formatApiErrorDetail = (detail) => {
   if (!detail) return ''
   if (typeof detail === 'string') return detail

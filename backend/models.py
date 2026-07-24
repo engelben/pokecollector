@@ -141,7 +141,17 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     avatar_id = Column(Integer, nullable=True)  # Pokemon number (1-151) for avatar sprite
     must_change_password = Column(Boolean, default=False)
+    managed_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    login_enabled = Column(Boolean, nullable=False, default=True)
+    profile_pin_hash = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())
+
+    managed_by = relationship(
+        "User",
+        remote_side=[id],
+        foreign_keys=[managed_by_user_id],
+        backref="managed_profiles",
+    )
 
 
 class CollectionItem(Base):

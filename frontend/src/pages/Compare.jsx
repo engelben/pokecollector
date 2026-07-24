@@ -82,7 +82,7 @@ export default function Compare() {
   const { userId } = useParams()
   const navigate = useNavigate()
   const { t, formatPrice, pricePrimaryField } = useSettings()
-  const { multiUser } = useAuth()
+  const { hasMultipleCollectors } = useAuth()
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['compare', userId, pricePrimaryField],
@@ -96,7 +96,7 @@ export default function Compare() {
     return (Number(data?.overlap ?? 0) / total) * 100
   }, [data])
 
-  if (!multiUser) {
+  if (!hasMultipleCollectors) {
     return <Navigate to="/" replace />
   }
 

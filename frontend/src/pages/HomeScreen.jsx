@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  RefreshCw, TrendingUp, TrendingDown, Layers, Star, Wallet, LogOut,
+  RefreshCw, TrendingUp, TrendingDown, Layers, Star, Wallet,
   Search, Library, Grid2X2, BarChart3, Settings, Trophy, ArrowRightLeft, ListOrdered,
 } from 'lucide-react'
 import {
@@ -17,6 +17,7 @@ import { useTilt } from '../hooks/useTilt'
 import { resolveCardImageUrl } from '../utils/imageUrl'
 import { collectionItemTargetUrl } from '../utils/navigation'
 import CardImage from '../components/CardImage'
+import CollectorProfileMenu from '../components/CollectorProfileMenu'
 
 // Compact number formatter for mobile (1.2k, 3.4M, etc.)
 function compactNum(n) {
@@ -70,7 +71,7 @@ export default function HomeScreen() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { formatPrice, t, pricePrimaryField } = useSettings()
-  const { user, logout, multiUser } = useAuth()
+  const { user, hasMultipleCollectors } = useAuth()
   const [chartPeriod, setChartPeriod] = useState('1W')
 
   const { data, isLoading } = useQuery({
@@ -154,7 +155,7 @@ export default function HomeScreen() {
     { to: '/pokedex',    icon: ListOrdered, label: t('nav.pokedex'),    color: '#ffb74d' },
     { to: '/analytics',  icon: BarChart3,  label: t('nav.analytics'),   color: '#f5c842' },
     { to: '/trades',     icon: ArrowRightLeft, label: t('nav.trades'),   color: '#ff8a65' },
-    ...(multiUser ? [{ to: '/leaderboard', icon: Trophy, label: t('nav.leaderboard'), color: '#ffd54f' }] : []),
+    ...(hasMultipleCollectors ? [{ to: '/leaderboard', icon: Trophy, label: t('nav.leaderboard'), color: '#ffd54f' }] : []),
     { to: '/settings',   icon: Settings,   label: t('nav.settings'),    color: '#b0bec5' },
   ]
 
@@ -200,20 +201,8 @@ export default function HomeScreen() {
 
       <div className="relative z-10 flex flex-col gap-6 px-4 pt-6 pb-10">
 
-        {/* ── TOP BAR: Logout + Sync ── */}
-        <div className="flex items-center justify-between">
-          {multiUser ? (
-            <button
-              onClick={() => { logout(); navigate('/login') }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-text-muted hover:text-brand-red transition-colors"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
-            >
-              <LogOut size={12} />
-              {t('auth.logout')}
-            </button>
-          ) : (
-            <div />
-          )}
+        {/* ── TOP BAR: Sync + collector profile ── */}
+        <div className="flex items-center justify-end gap-2">
           {user?.role === 'admin' && (
           <button
             onClick={() => syncMutation.mutate()}
@@ -229,6 +218,7 @@ export default function HomeScreen() {
             {isRunning ? t('home.syncing') : t('home.sync')}
           </button>
           )}
+          <CollectorProfileMenu />
         </div>
 
         {/* ── PORTFOLIO VALUE (large, prominent) ── */}
