@@ -20,7 +20,7 @@ import FallbackBadges from '../components/FallbackBadges'
 import { getEffectiveCardPrice } from '../utils/prices'
 import TcgdexLanguageSelect from '../components/TcgdexLanguageSelect'
 import { tcgdexLanguageBadgeClass, tcgdexLanguageLabel } from '../utils/tcgdexLanguages'
-import { invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
+import { invalidateCardState, invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
 import { useVisibleTcgdexLanguages } from '../hooks/useVisibleTcgdexLanguages'
 import { formatMoneyInputValue, parseMoneyInputValue } from '../utils/moneyInput'
 
@@ -455,10 +455,8 @@ function CollectionEditModal({ item, onClose }) {
     }),
     onSuccess: () => {
       toast.success(t('collection.updated'))
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
       onClose()
     },
     onError: () => toast.error(t('collection.updateFailed')),
@@ -468,10 +466,8 @@ function CollectionEditModal({ item, onClose }) {
     mutationFn: () => removeFromCollection(item.id),
     onSuccess: () => {
       toast.success(t('collection.removed'))
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
       onClose()
     },
     onError: () => toast.error(t('collection.removeFailed')),
@@ -488,10 +484,8 @@ function CollectionEditModal({ item, onClose }) {
     }),
     onSuccess: () => {
       toast.success(t('collection.versionAdded'))
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
       onClose()
     },
     onError: () => toast.error(t('card.addFailed')),
@@ -515,11 +509,8 @@ function CollectionEditModal({ item, onClose }) {
       setSavedCustomImageUrl(nextUrl)
       setCustomImageVersion((version) => version + 1)
       toast.success(t('card.customImageSaved'))
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
-      queryClient.invalidateQueries({ queryKey: ['set-checklist'] })
     },
     onError: (err) => {
       const detail = err?.response?.data?.detail || t('common.error')
@@ -955,9 +946,8 @@ export default function Collection() {
       } else {
         toast.success(message)
       }
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
     onError: (err) => {
       toast.error(getApiErrorMessage(err, t('collection.csvImportFailed')))
@@ -1585,9 +1575,8 @@ export default function Collection() {
           onClose={() => setEditCard(null)}
           onCreated={() => {
             setEditCard(null)
-            queryClient.invalidateQueries({ queryKey: ['collection'] })
+            invalidateCardState(queryClient)
             invalidateTcgdexFilterLanguages(queryClient)
-            queryClient.invalidateQueries({ queryKey: ['dashboard'] })
           }}
           sets={allSets}
         />

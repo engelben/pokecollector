@@ -2,7 +2,7 @@ import { useState, useEffect, useId, memo } from 'react'
 import { createPortal } from 'react-dom'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Plus, Check, Heart, BookOpen, X, PenLine, Pencil, Trash2, ExternalLink } from 'lucide-react'
+import { Plus, Heart, BookOpen, X, PenLine, Pencil, Trash2, ExternalLink } from 'lucide-react'
 import { addToCollection, addToWishlist, createCustomCard, updateCustomCard, updateCardCustomImage, deleteCustomCard, getSets, getPriceHistory } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import toast from 'react-hot-toast'
@@ -14,9 +14,10 @@ import FallbackBadges from './FallbackBadges'
 import MoneyInput from './MoneyInput'
 import { getEffectiveCardPrice } from '../utils/prices'
 import { tcgdexLanguageBadgeClass, tcgdexLanguageLabel, getTcgdexLanguage } from '../utils/tcgdexLanguages'
-import { invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
+import { invalidateCardState, invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
 import { parseMoneyInputValue } from '../utils/moneyInput'
 import { cardmarketLinks } from '../utils/cardmarket'
+import CardStateIndicators from './CardStateIndicators'
 
 function askWishlistQuantity(t, defaultQuantity = 1) {
   const initialQuantity = Math.max(1, Math.min(99, parseInt(defaultQuantity, 10) || 1))
@@ -122,7 +123,7 @@ export function CustomCardModal({ onClose, onCreated, sets: setsProp = [], autoA
     mutationFn: (data) => updateCustomCard(editCard.id, data),
     onSuccess: (res) => {
       toast.success(t('settings.cardUpdated'))
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
       onCreated && onCreated(res)
       onClose()
@@ -137,12 +138,9 @@ export function CustomCardModal({ onClose, onCreated, sets: setsProp = [], autoA
     mutationFn: () => deleteCustomCard(editCard.id),
     onSuccess: (res) => {
       toast.success(res?.data?.message || t('common.success'))
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['custom-cards'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'pokedex' })
       onClose()
     },
     onError: (err) => {
@@ -155,10 +153,8 @@ export function CustomCardModal({ onClose, onCreated, sets: setsProp = [], autoA
     mutationFn: (data) => addToCollection(data),
     onSuccess: () => {
       toast.success(`${createdCard.name} ${t('card.addedToCollection')}`)
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
       onCreated && onCreated(createdCard)
       onClose()
     },
@@ -400,10 +396,8 @@ export const CardItem = memo(function CardItem({ card, showActions = true, onAdd
     mutationFn: (data) => addToCollection(data),
     onSuccess: () => {
       toast.success(`${card.name} ${t('card.addedToCollection')}`)
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
     },
     onError: () => toast.error(t('card.addFailed')),
   })
@@ -412,7 +406,7 @@ export const CardItem = memo(function CardItem({ card, showActions = true, onAdd
     mutationFn: (data) => addToWishlist(data),
     onSuccess: () => {
       toast.success(`${card.name} ${t('card.addedToWishlist')}`)
-      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
     },
     onError: () => toast.error(t('card.wishlistFailed')),
@@ -436,7 +430,8 @@ export const CardItem = memo(function CardItem({ card, showActions = true, onAdd
   if (compact) {
     return (
       <div ref={tiltRef} className="card cursor-pointer group p-2 hover:border-brand-red/20 transition-all" onClick={() => setShowModal(true)} onMouseMove={tiltMove} onMouseLeave={tiltLeave}>
-        <div className="aspect-[2.5/3.5] w-full rounded-xl overflow-hidden ring-1 ring-white/5 group-hover:ring-2 group-hover:ring-brand-red/30 transition-all duration-200">
+        <div className="relative aspect-[2.5/3.5] w-full rounded-xl overflow-hidden ring-1 ring-white/5 group-hover:ring-2 group-hover:ring-brand-red/30 transition-all duration-200">
+          <CardStateIndicators card={card} compact className="absolute left-1.5 right-1.5 top-1.5 z-10" />
           {cardImage ? (
             <img src={cardImage} alt={cardName} className="w-full h-full object-cover shadow-lg group-hover:scale-[1.02] transition-transform duration-300" loading="lazy" />
           ) : (
@@ -452,7 +447,8 @@ export const CardItem = memo(function CardItem({ card, showActions = true, onAdd
   return (
     <>
       <div ref={tiltRef} className="card cursor-pointer group hover:border-brand-red/20 transition-all" onClick={() => setShowModal(true)} onMouseMove={tiltMove} onMouseLeave={tiltLeave}>
-        <div className="aspect-[2.5/3.5] w-full mb-3 rounded-xl overflow-hidden ring-1 ring-white/5 group-hover:ring-2 group-hover:ring-brand-red/30 transition-all duration-200">
+        <div className="relative aspect-[2.5/3.5] w-full mb-3 rounded-xl overflow-hidden ring-1 ring-white/5 group-hover:ring-2 group-hover:ring-brand-red/30 transition-all duration-200">
+          <CardStateIndicators card={card} className="absolute left-2 right-2 top-2 z-10" />
           {cardImage ? (
             <img src={cardImage} alt={cardName} className="w-full h-full object-cover shadow-lg group-hover:scale-[1.02] transition-transform duration-300" loading="lazy" />
           ) : (
@@ -542,7 +538,7 @@ export const CardItem = memo(function CardItem({ card, showActions = true, onAdd
           editCard={card}
           onClose={() => setShowEditModal(false)}
           onCreated={() => {
-            queryClient.invalidateQueries({ queryKey: ['collection'] })
+            invalidateCardState(queryClient)
             invalidateTcgdexFilterLanguages(queryClient)
           }}
           sets={[]}
@@ -616,11 +612,8 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
     mutationFn: (data) => addToCollection(data),
     onSuccess: () => {
       toast.success(`${t('common.add')} ${quantity}x ${card.name}!`)
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'pokedex' })
       onClose()
     },
     onError: () => toast.error(t('card.addFailed')),
@@ -630,7 +623,7 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
     mutationFn: (data) => addToWishlist(data),
     onSuccess: () => {
       toast.success(`${card.name} ${t('card.addedToWishlist')}`)
-      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
       onClose()
     },
@@ -645,11 +638,8 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
       setSavedCustomImageUrl(nextUrl)
       setCustomImageVersion((version) => version + 1)
       toast.success(t('card.customImageSaved'))
-      queryClient.invalidateQueries({ queryKey: ['card-search'] })
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient)
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
-      queryClient.invalidateQueries({ queryKey: ['set-checklist'] })
     },
     onError: (err) => {
       const detail = err?.response?.data?.detail || t('common.error')

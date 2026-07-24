@@ -127,7 +127,7 @@ class CardWithSet(CardBase):
 
 class CollectionItemCreate(BaseModel):
     card_id: str
-    quantity: int = 1
+    quantity: int = Field(default=1, ge=1, le=999)
     condition: str = "NM"
     variant: Optional[str] = "Normal"
     purchase_price: Optional[float] = None
@@ -135,7 +135,7 @@ class CollectionItemCreate(BaseModel):
 
 
 class CollectionItemUpdate(BaseModel):
-    quantity: Optional[int] = None
+    quantity: Optional[int] = Field(default=None, ge=1, le=999)
     condition: Optional[str] = None
     variant: Optional[str] = None
     purchase_price: Optional[float] = None

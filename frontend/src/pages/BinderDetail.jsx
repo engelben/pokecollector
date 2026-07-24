@@ -10,7 +10,7 @@ import { resolveCardImageUrl } from '../utils/imageUrl'
 import { cardNumberMatches } from '../utils/cardNumbers'
 import { normalizeSearchText, textIncludes } from '../utils/textSearch'
 import { tcgdexLanguageLabel } from '../utils/tcgdexLanguages'
-import { invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
+import { invalidateCardState, invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
 
 const SPRITE_BASE_URL = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated'
 const CONDITIONS = ['Mint', 'NM', 'LP', 'MP', 'HP']
@@ -285,7 +285,8 @@ export default function BinderDetail() {
       } else {
         toast(t('binderTypes.alreadyInWishlist'))
       }
-      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
+      invalidateCardState(queryClient)
+      invalidateTcgdexFilterLanguages(queryClient)
     },
     onError: (e) => toast.error(e.response?.data?.detail || t('card.addFailed')),
   })
@@ -302,7 +303,8 @@ export default function BinderDetail() {
       } else {
         toast(`${t('binderTypes.alreadyInWishlist')} (${summary})`)
       }
-      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
+      invalidateCardState(queryClient)
+      invalidateTcgdexFilterLanguages(queryClient)
     },
     onError: (e) => toast.error(e.response?.data?.detail || t('card.addFailed')),
   })

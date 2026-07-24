@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Plus, Check, Trash2, X, Heart } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, X, Heart } from 'lucide-react'
 import { getSetChecklist, addToCollection, addToWishlist, updateCollectionItem, removeFromCollection } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import toast from 'react-hot-toast'
@@ -10,9 +10,10 @@ import clsx from 'clsx'
 import { resolveCardImageUrl, resolveSetImageUrl } from '../utils/imageUrl'
 import { CARD_VARIANTS, getAvailableVariants, getDefaultVariantOrNull } from '../utils/cardVariants'
 import FallbackBadges from '../components/FallbackBadges'
+import CardStateIndicators from '../components/CardStateIndicators'
 import { HOLO_FIELD_MAP } from '../utils/prices'
 import TcgdexLanguageSelect from '../components/TcgdexLanguageSelect'
-import { invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
+import { invalidateCardState, invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
 import MoneyInput from '../components/MoneyInput'
 import { parseMoneyInputValue } from '../utils/moneyInput'
 
@@ -305,11 +306,8 @@ export default function SetDetail() {
     }),
     onSuccess: () => {
       toast.success(t('card.addedToCollection'))
-      queryClient.invalidateQueries({ queryKey: ['set-checklist', setId] })
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient, { setId })
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
       setSelectedCard(null)
     },
     onError: () => toast.error(t('card.addFailed')),
@@ -322,7 +320,7 @@ export default function SetDetail() {
     }),
     onSuccess: () => {
       toast.success(t('card.addedToWishlist'))
-      queryClient.invalidateQueries({ queryKey: ['wishlist'] })
+      invalidateCardState(queryClient, { setId })
       invalidateTcgdexFilterLanguages(queryClient)
       setSelectedCard(null)
     },
@@ -333,11 +331,8 @@ export default function SetDetail() {
     mutationFn: (item) => removeFromCollection(item.id),
     onSuccess: () => {
       toast.success(t('collection.removed'))
-      queryClient.invalidateQueries({ queryKey: ['set-checklist', setId] })
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient, { setId })
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
       setSelectedCard(null)
     },
     onError: () => toast.error(t('collection.removeFailed')),
@@ -347,11 +342,8 @@ export default function SetDetail() {
     mutationFn: ({ item, quantity }) => updateCollectionItem(item.id, { quantity }),
     onSuccess: () => {
       toast.success(t('collection.updated'))
-      queryClient.invalidateQueries({ queryKey: ['set-checklist', setId] })
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCardState(queryClient, { setId })
       invalidateTcgdexFilterLanguages(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'card-search' })
     },
     onError: () => toast.error(t('collection.updateFailed')),
   })
@@ -515,14 +507,14 @@ export default function SetDetail() {
               </div>
             )}
 
-            <FallbackBadges
-              card={card}
-              className="absolute left-1 right-1 bottom-5 z-10 justify-center pointer-events-none"
-              compact
-              variant="overlay"
-            />
+            <CardStateIndicators card={card} compact className="absolute left-1 right-1 top-1 z-10" />
+            <div className="absolute left-1 right-1 bottom-6 z-10 flex flex-col items-center gap-1 pointer-events-none">
+              <FallbackBadges card={card} className="justify-center" compact variant="overlay" />
+            </div>
 
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
+            {/* Above the pills (z-10) so hovering dims them along with the art, rather
+                than leaving them lit on top of the overlay. */}
+            <div className="absolute inset-0 z-20 bg-black/0 group-hover:bg-black/40 transition-all flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
               <p className="text-white text-xs font-medium text-center px-1 line-clamp-2">{card.name}</p>
               <button onClick={(e) => { e.stopPropagation(); setSelectedCard(card) }}
                 className="bg-brand-red text-white rounded-full p-1">
@@ -530,16 +522,6 @@ export default function SetDetail() {
               </button>
             </div>
 
-            {card.owned && (
-              <div className="absolute top-0.5 right-0.5 bg-green rounded-full p-0.5">
-                <Check size={8} className="text-white" />
-              </div>
-            )}
-            {card.quantity > 1 && (
-              <div className="absolute top-0.5 left-0.5 bg-bg-surface/90 rounded text-xs px-1 text-text-primary font-bold">
-                {card.quantity}x
-              </div>
-            )}
 
             <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-center text-xs text-text-secondary py-0.5">
               #{card.number}
