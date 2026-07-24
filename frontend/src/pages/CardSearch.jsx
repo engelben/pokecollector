@@ -261,6 +261,17 @@ export default function CardSearch() {
   })
 
   const totalPages = data ? Math.ceil(data.total_count / pageSize) : 0
+  const hasUrlSearchState = Array.from(searchParams.keys()).length > 0
+  const hasActiveFilters = Boolean(
+    filters.category || filters.type || filters.subtype || filters.rarity ||
+    filters.set_id || filters.series || filters.artist || filters.hp_min ||
+    filters.hp_max || filters.sort_by
+  )
+  const activeFilterCount = [
+    filters.category, filters.type, filters.subtype, filters.rarity,
+    filters.set_id, filters.series, filters.artist, filters.hp_min,
+    filters.hp_max, filters.sort_by,
+  ].filter(Boolean).length
   const isCodeNumberSearch = CODE_NUMBER_RE.test(searchInput.trim())
 
   const handleSearch = (e) => {
