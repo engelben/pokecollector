@@ -260,6 +260,7 @@ export default function CardSearch() {
     placeholderData: (prev) => prev,
   })
 
+  const totalPages = data ? Math.ceil(data.total_count / pageSize) : 0
   const isCodeNumberSearch = CODE_NUMBER_RE.test(searchInput.trim())
 
   const handleSearch = (e) => {
