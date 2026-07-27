@@ -112,6 +112,7 @@ function ItemEditor({ item, lists, onClose }) {
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['wishlist-items'] })
     queryClient.invalidateQueries({ queryKey: ['wishlists'] })
+    invalidateCardState(queryClient)
     invalidateTcgdexFilterLanguages(queryClient)
   }
 
@@ -264,6 +265,7 @@ export default function Wishlist() {
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['wishlist-items'] })
     queryClient.invalidateQueries({ queryKey: ['wishlists'] })
+    invalidateCardState(queryClient)
     invalidateTcgdexFilterLanguages(queryClient)
   }
 
@@ -275,12 +277,18 @@ export default function Wishlist() {
       toast.success('Wishlist deleted')
     },
   })
-  const deleteItemMutation = useMutation({ mutationFn: removeFromWishlist, onSuccess: refresh })
+  const deleteItemMutation = useMutation({
+    mutationFn: removeFromWishlist,
+    onSuccess: () => {
+      refresh()
+      toast.success(t('wishlist.removed'))
+    },
+  })
   const collectionMutation = useMutation({
     mutationFn: (item) => addToCollection({ card_id: item.card_id, quantity: 1, condition: item.desired_condition === 'Any' ? 'NM' : item.desired_condition, variant: item.desired_variant === 'Any' ? 'Normal' : item.desired_variant, lang: item.card?.lang || 'en' }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['collection'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      invalidateCardState(queryClient)
+      invalidateTcgdexFilterLanguages(queryClient)
       toast.success(t('wishlist.addedToCollection'))
     },
   })
