@@ -430,6 +430,18 @@ const en = {
 
   // Wishlist
   wishlist: {
+    lists: 'Wishlists',
+    newList: 'New wishlist',
+    editList: 'Edit wishlist',
+    cardmarketExport: 'Cardmarket export',
+    csvExport: 'CSV export',
+    purchaseAllowed: 'Purchase allowed',
+    openOrTradeOnly: 'Open or trade only',
+    seasonEndPurchase: 'Season-end purchase',
+    parentApprovalRequired: 'Parent approval required',
+    purposeLabels: 'Collection purpose',
+    desiredVariant: 'Desired variant',
+    desiredCondition: 'Minimum condition',
     title: 'Wishlist',
     subtitle: 'Cards you want · Set price alerts for Telegram notifications',
     empty: 'Your wishlist is empty',
@@ -463,6 +475,18 @@ const en = {
     allSets: 'All Sets',
     allRarities: 'All Rarities',
     noResults: 'No items found',
+    gridView: 'Grid view',
+    listView: 'List view',
+    viewMode: 'Wishlist display mode',
+    search: 'Search wishlist',
+    species: 'Species',
+    allSpecies: 'All species',
+    noMatchingCards: 'No matching cards',
+    resultCount: '{shown} of {total} cards',
+    filters: 'Wishlist filters',
+    priority: 'Priority',
+    editCard: 'Edit wishlist card',
+    removeCard: 'Remove wishlist card',
   },
 
   // Binders

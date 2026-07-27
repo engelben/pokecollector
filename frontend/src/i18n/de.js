@@ -430,6 +430,18 @@ const de = {
 
   // Wishlist
   wishlist: {
+    lists: 'Wunschlisten',
+    newList: 'Neue Wunschliste',
+    editList: 'Wunschliste bearbeiten',
+    cardmarketExport: 'Cardmarket-Export',
+    csvExport: 'CSV-Export',
+    purchaseAllowed: 'Kauf erlaubt',
+    openOrTradeOnly: 'Nur öffnen oder tauschen',
+    seasonEndPurchase: 'Kauf zum Saisonende',
+    parentApprovalRequired: 'Elternfreigabe erforderlich',
+    purposeLabels: 'Sammlungszweck',
+    desiredVariant: 'Gewünschte Variante',
+    desiredCondition: 'Mindestzustand',
     title: 'Wunschliste',
     subtitle: 'Gewünschte Karten · Preisalarme für Telegram-Benachrichtigungen',
     empty: 'Deine Wunschliste ist leer',
@@ -463,6 +475,18 @@ const de = {
     allSets: 'Alle Sets',
     allRarities: 'Alle Seltenheiten',
     noResults: 'Keine Einträge gefunden',
+    gridView: 'Rasteransicht',
+    listView: 'Listenansicht',
+    viewMode: 'Ansicht der Wunschliste',
+    search: 'Wunschliste durchsuchen',
+    species: 'Pokémon-Art',
+    allSpecies: 'Alle Arten',
+    noMatchingCards: 'Keine passenden Karten',
+    resultCount: '{shown} von {total} Karten',
+    filters: 'Wunschlistenfilter',
+    priority: 'Priorität',
+    editCard: 'Wunschlistenkarte bearbeiten',
+    removeCard: 'Wunschlistenkarte entfernen',
   },
 
   // Binders
