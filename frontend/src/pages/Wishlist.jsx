@@ -1,8 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Archive, Check, Copy, Download, Edit2, ExternalLink, Heart, Library, Filter, SortAsc, ChevronUp, ChevronDown, BookOpen
-  Grid2X2, List, Minus, MoveRight, Plus, Save, Search, Trash2, X,  Minus, Plus, ShoppingCart 
+  Archive,
+  Check,
+  Copy,
+  Download,
+  Edit2,
+  ExternalLink,
+  Grid2X2,
+  Heart,
+  Library,
+  List,
+  MoveRight,
+  Plus,
+  Save,
+  Search,
+  Trash2,
+  X,
 } from 'lucide-react'
 import {
   addToCollection, createWishlist, deleteWishlist, exportWishlist,

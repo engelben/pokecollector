@@ -72,6 +72,8 @@ const de = {
     empty: 'Dein Warenkorb ist leer. Füge Karten aus deiner Wunschliste hinzu.',
     total: 'Geschätzte Summe',
     submit: 'Korb zur Freigabe speichern',
+  },
+
   photoImport: {
     title: 'Foto-Massenimport',
     subtitle: 'Binderseiten fotografieren, unsichere Treffer prüfen und die Kollektion gesammelt aktualisieren.',

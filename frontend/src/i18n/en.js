@@ -72,6 +72,8 @@ const en = {
     empty: 'Your cart is empty. Add cards from your wishlist.',
     total: 'Estimated total',
     submit: 'Save basket for approval',
+  },
+
   photoImport: {
     title: 'Bulk photo import',
     subtitle: 'Photograph binder pages, review uncertain matches, and apply one collection update.',
