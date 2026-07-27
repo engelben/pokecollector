@@ -134,6 +134,27 @@ export const updateCollectionItem = (id, data) => api.put(`/collection/${id}`, d
 export const removeFromCollection = (id) => api.delete(`/collection/${id}`)
 export const getCollectionStats = (params = {}) => api.get('/collection/stats/summary', { params })
 
+// Bulk photo collection import
+export const listPhotoImports = (params = {}) => api.get('/photo-imports/', { params }).then(r => r.data)
+export const createPhotoImport = (data) => api.post('/photo-imports/', data).then(r => r.data)
+export const getPhotoImport = (id) => api.get(`/photo-imports/${id}`).then(r => r.data)
+export const updatePhotoImport = (id, data) => api.put(`/photo-imports/${id}`, data).then(r => r.data)
+export const deletePhotoImport = (id) => api.delete(`/photo-imports/${id}`).then(r => r.data)
+export const uploadPhotoImportImage = (id, file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return api.post(`/photo-imports/${id}/images`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
+  }).then(r => r.data)
+}
+export const deletePhotoImportImage = (id, imageId) => api.delete(`/photo-imports/${id}/images/${imageId}`).then(r => r.data)
+export const analyzePhotoImportImage = (id, imageId) => api.post(`/photo-imports/${id}/images/${imageId}/analyze`, null, { timeout: 120000 }).then(r => r.data)
+export const updatePhotoImportItem = (id, itemId, data) => api.put(`/photo-imports/${id}/items/${itemId}`, data).then(r => r.data)
+export const searchPhotoImportCards = (id, params) => api.get(`/photo-imports/${id}/card-search`, { params }).then(r => r.data)
+export const getPhotoImportSummary = (id) => api.get(`/photo-imports/${id}/summary`).then(r => r.data)
+export const commitPhotoImport = (id, data = {}) => api.post(`/photo-imports/${id}/commit`, data, { timeout: 120000 }).then(r => r.data)
+
 // Sets
 export const getSets = (params) => api.get('/sets/', { params })
 export const getSet = (id) => api.get(`/sets/${id}`)
