@@ -34,7 +34,7 @@ function TrainerAvatar({ avatarId, username }) {
 export default function Leaderboard() {
   const navigate = useNavigate()
   const { t, formatPrice, pricePrimaryField } = useSettings()
-  const { multiUser, user: currentUser } = useAuth()
+  const { hasMultipleCollectors, user: currentUser } = useAuth()
   const [sortBy, setSortBy] = useState('total_value')
   const SOCIAL_TABS = [
     { to: '/leaderboard', label: t('nav.leaderboard'), icon: Trophy },
@@ -55,7 +55,7 @@ export default function Leaderboard() {
     })
   }, [data, sortBy])
 
-  if (!multiUser) {
+  if (!hasMultipleCollectors) {
     return <Navigate to="/" replace />
   }
 

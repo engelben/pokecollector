@@ -17,6 +17,7 @@ const PokedexSpecies = lazy(() => import('./pages/PokedexSpecies'))
 const Sets = lazy(() => import('./pages/Sets'))
 const SetDetail = lazy(() => import('./pages/SetDetail'))
 const Wishlist = lazy(() => import('./pages/Wishlist'))
+const Wallet = lazy(() => import('./pages/Wallet'))
 const Binders = lazy(() => import('./pages/Binders'))
 const BinderDetail = lazy(() => import('./pages/BinderDetail'))
 const Analytics = lazy(() => import('./pages/Analytics'))
@@ -149,6 +150,7 @@ function ProtectedRoutes() {
         <Route path="sets" element={lazyRoute(<Sets />)} />
         <Route path="sets/:setId" element={lazyRoute(<SetDetail />)} />
         <Route path="wishlist" element={lazyRoute(<Wishlist />)} />
+        <Route path="wallet" element={lazyRoute(<Wallet />)} />
         <Route path="binders" element={lazyRoute(<Binders />)} />
         <Route path="binders/:binderId" element={lazyRoute(<BinderDetail />)} />
         <Route path="analytics" element={lazyRoute(<Analytics />)} />
