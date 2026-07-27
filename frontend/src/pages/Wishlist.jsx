@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Trash2, Edit2, Check, X, Heart, Filter, SortAsc, ChevronUp, ChevronDown, Library, BookOpen, Minus, Plus } from 'lucide-react'
-import { getWishlist, removeFromWishlist, updateWishlistItem, addToCollection } from '../api/client'
+import { Trash2, Edit2, Check, X, Heart, Filter, SortAsc, ChevronUp, ChevronDown, Library, BookOpen, Minus, Plus, ShoppingCart } from 'lucide-react'
+import { getWishlist, removeFromWishlist, updateWishlistItem, addToCollection, getBudgetSummary, getBudgetCart, putBudgetCartItem } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import CardListItem from '../components/CardListItem'
 import TabNav from '../components/TabNav'
@@ -82,6 +82,13 @@ export default function Wishlist() {
     queryKey: ['wishlist'],
     queryFn: () => getWishlist().then(r => r.data),
   })
+  const walletQuery = useQuery({ queryKey: ['budget-summary', null], queryFn: () => getBudgetSummary() })
+  const cartQuery = useQuery({ queryKey: ['budget-cart', null], queryFn: () => getBudgetCart(), enabled: Boolean(walletQuery.data?.enabled) })
+  const cartMutation = useMutation({
+    mutationFn: (item) => putBudgetCartItem({ card_id: item.card_id, quantity: 1 }),
+    onSuccess: () => { toast.success('Added to wishlist cart'); queryClient.invalidateQueries({ queryKey: ['budget-cart'] }) },
+  })
+  const cartItems = new Set((cartQuery.data?.items || []).map(item => item.card_id))
 
   const COLLECTION_TABS = [
     { to: '/collection', label: t('nav.collection'), icon: Library },
@@ -356,6 +363,10 @@ export default function Wishlist() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1 justify-end">
+                              {walletQuery.data?.enabled && <button onClick={() => cartMutation.mutate(item)} disabled={cartItems.has(item.card_id) || cartMutation.isPending}
+                                className="text-text-muted hover:text-gold disabled:opacity-30 transition-colors p-1" title={cartItems.has(item.card_id) ? 'Already in wishlist cart' : 'Add to wishlist cart'}>
+                                <ShoppingCart size={14} />
+                              </button>}
                               <button onClick={() => addToColMutation.mutate(item.card_id)}
                                 className="text-text-muted hover:text-green transition-colors p-1" title={t('wishlist.addToCollection')}>
                                 <Check size={14} />
@@ -410,6 +421,8 @@ export default function Wishlist() {
                       value={price ? formatPrice(price) : '-'}
                       rightAction={
                         <div className="flex flex-col gap-1">
+                          {walletQuery.data?.enabled && <button onClick={(e) => { e.stopPropagation(); cartMutation.mutate(item) }} disabled={cartItems.has(item.card_id) || cartMutation.isPending}
+                            className="text-text-muted hover:text-gold disabled:opacity-30 transition-colors p-1" title="Add to wishlist cart"><ShoppingCart size={12} /></button>}
                           <button onClick={(e) => { e.stopPropagation(); setEditingId(item.id) }}
                             className="text-text-muted hover:text-text-primary transition-colors p-1">
                             <Edit2 size={12} />
