@@ -8,6 +8,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database import get_db, get_setting, save_setting
@@ -160,6 +161,18 @@ def _token_response(user: User, actor_user: User) -> TokenResponse:
         access_token=_issue_user_token(user, actor_user),
         user=profile_payload(user, actor_user),
     )
+def _sync_public_handle_for_username(db: Session, user: User, username: str) -> None:
+    from services import public_profile as pp
+
+    if not user.is_profile_public:
+        user.public_handle = None
+        return
+    try:
+        pp.assign_public_handle(db, user, trainer_name=username)
+    except pp.HandleConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    except pp.HandleError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
@@ -504,6 +517,7 @@ def update_user(
             raise HTTPException(status_code=400, detail="Managed profiles must remain trainers")
     ensure_keeps_active_admin(db, user, data)
     if data.username is not None:
+        _sync_public_handle_for_username(db, user, data.username)
         user.username = _clean_username(data.username)
     if data.password is not None:
         user.hashed_password = hash_password(data.password)
@@ -513,7 +527,11 @@ def update_user(
         user.is_active = data.is_active
     if field_was_set(data, "avatar_id"):
         user.avatar_id = data.avatar_id
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Trainer name or public URL is already taken") from None
     return {"id": user.id, "username": user.username, "role": user.role, "is_active": user.is_active, "avatar_id": user.avatar_id}
 
 
@@ -589,6 +607,11 @@ def change_username(data: dict, current_user: User = Depends(get_current_user), 
     existing = db.query(User).filter(User.username == new_username, User.id != current_user.id).first()
     if existing:
         raise HTTPException(status_code=409, detail="Username already taken")
+    _sync_public_handle_for_username(db, current_user, new_username)
     current_user.username = new_username
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Trainer name or public URL is already taken") from None
     return {"id": current_user.id, "username": current_user.username, "role": current_user.role, "avatar_id": current_user.avatar_id}

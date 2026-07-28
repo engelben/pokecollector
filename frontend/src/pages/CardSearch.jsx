@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { Search, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, SortAsc, Hash, PenLine, SlidersHorizontal, Camera, CheckSquare, Plus, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -17,7 +17,14 @@ import { useVisibleTcgdexLanguages } from '../hooks/useVisibleTcgdexLanguages'
 import TcgdexLanguageSelect from '../components/TcgdexLanguageSelect'
 import { normalizeTcgdexLanguage, tcgdexLanguageBadgeClass, tcgdexLanguageLabel } from '../utils/tcgdexLanguages'
 import { invalidateCardState, invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
-import { getCardRarityEffectClass } from '../utils/cardRarity'
+import { getCardVariantEffectClass } from '../utils/cardVariantEffect'
+import {
+  getLastCardSearchPage,
+  isValidCardSearchPage,
+  parseCardSearchPage,
+  resetCardSearchFilters,
+  updateCardSearchParams,
+} from '../utils/cardSearchUrlState'
 
 function TiltCardWrapper({ children, className, onClick }) {
   const { ref, onMouseMove, onMouseEnter, onMouseLeave } = useTilt(12)
@@ -140,7 +147,9 @@ export default function CardSearch() {
   const { t, settings } = useSettings()
   const visibleLanguages = useVisibleTcgdexLanguages()
   const queryClient = useQueryClient()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search])
   const [searchInput, setSearchInput] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [showCustomModal, setShowCustomModal] = useState(false)
@@ -189,8 +198,6 @@ export default function CardSearch() {
       : requestedLanguage && visibleLanguageCodes.includes(normalizeTcgdexLanguage(requestedLanguage, ''))
         ? normalizeTcgdexLanguage(requestedLanguage, '')
         : defaultLangFilter
-    const parsedPage = Number.parseInt(read('page'), 10)
-
     return {
       filters: {
         name: read('q'),
@@ -207,7 +214,7 @@ export default function CardSearch() {
         sort_order: read('sort_order') === 'desc' ? 'desc' : 'asc',
       },
       langFilter: language,
-      page: Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1,
+      page: parseCardSearchPage(read('page')),
     }
   }, [allSets, defaultLangFilter, searchParams, visibleLanguageCodes])
 
@@ -225,16 +232,14 @@ export default function CardSearch() {
     return map
   }, [allSets])
 
-  const updateSearchParams = (updates, { replace = false, resetPage = true } = {}) => {
-    const next = new URLSearchParams(searchParams)
-    Object.entries(updates).forEach(([key, rawValue]) => {
-      const value = String(rawValue ?? '').trim()
-      if (!value || (key === 'sort_order' && value === 'asc')) next.delete(key)
-      else next.set(key, value)
-    })
-    if (resetPage) next.delete('page')
-    setSearchParams(next, { replace })
-  }
+  const updateSearchParams = useCallback((updates, { replace = false, resetPage = true } = {}) => {
+    const next = updateCardSearchParams(location.search, updates, { resetPage })
+    const search = next.toString()
+    navigate(
+      { pathname: location.pathname, search: search ? `?${search}` : '' },
+      { replace },
+    )
+  }, [location.pathname, location.search, navigate])
 
   const queryParams = {
     name: filters.name || undefined,
@@ -262,7 +267,7 @@ export default function CardSearch() {
     placeholderData: (prev) => prev,
   })
 
-  const totalPages = data ? Math.ceil(data.total_count / pageSize) : 0
+  const totalPages = data ? getLastCardSearchPage(data.total_count, pageSize) : 0
   const hasUrlSearchState = Array.from(searchParams.keys()).length > 0
   const hasActiveFilters = Boolean(
     filters.category || filters.type || filters.subtype || filters.rarity ||
@@ -293,7 +298,12 @@ export default function CardSearch() {
 
   const toggleSortOrder = () => updateSearchParams({ sort_order: filters.sort_order === 'asc' ? 'desc' : 'asc' })
 
-  const clearFilters = () => setSearchParams(new URLSearchParams())
+  const clearSearch = () => navigate({ pathname: location.pathname, search: '' })
+  const resetFilters = () => {
+    const next = resetCardSearchFilters(location.search)
+    const search = next.toString()
+    navigate({ pathname: location.pathname, search: search ? `?${search}` : '' })
+  }
 
   const hasOpenOverlay = Boolean(selectedCard || showFilters || showCustomModal || showScanner)
 
@@ -302,10 +312,35 @@ export default function CardSearch() {
   }, [filters.name])
 
   useEffect(() => {
+    // Browser history can move away and back before React commits the
+    // intermediate location. Read the URL at the popstate boundary so the
+    // editable draft never remains attached to a different search entry.
+    const syncSearchInputFromHistory = () => {
+      setSearchInput(new URLSearchParams(window.location.search).get('q')?.trim() || '')
+    }
+    window.addEventListener('popstate', syncSearchInputFromHistory)
+    return () => window.removeEventListener('popstate', syncSearchInputFromHistory)
+  }, [])
+
+  useEffect(() => {
+    const rawPage = searchParams.get('page')
+    if (!rawPage || isValidCardSearchPage(rawPage)) return
+    updateSearchParams({ page: '' }, { replace: true, resetPage: false })
+  }, [searchParams, updateSearchParams])
+
+  useEffect(() => {
+    if (!data || isFetching || page <= totalPages) return
+    updateSearchParams(
+      { page: totalPages > 1 ? totalPages : '' },
+      { replace: true, resetPage: false },
+    )
+  }, [data, isFetching, page, totalPages, updateSearchParams])
+
+  useEffect(() => {
     // Once set data is available, remove a set that does not belong to its URL series.
     if (!allSets.length || !filters.series || !searchParams.get('set_id') || filters.set_id) return
     updateSearchParams({ set_id: '' }, { replace: true, resetPage: false })
-  }, [allSets.length, filters.series, filters.set_id, searchParams])
+  }, [allSets.length, filters.series, filters.set_id, searchParams, updateSearchParams])
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -330,7 +365,7 @@ export default function CardSearch() {
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [hasOpenOverlay, page, totalPages])
+  }, [hasOpenOverlay, page, totalPages, updateSearchParams])
 
   const handleCustomCreated = () => {
     queryClient.invalidateQueries({ queryKey: ['custom-cards'] })
@@ -542,7 +577,7 @@ export default function CardSearch() {
           </button>
 
           {hasUrlSearchState && (
-            <button type="button" onClick={clearFilters} className="btn-ghost flex-shrink-0">
+            <button type="button" onClick={clearSearch} className="btn-ghost flex-shrink-0">
               <X size={16} />
               <span className="hidden sm:inline">{t('common.clear')}</span>
             </button>
@@ -557,7 +592,7 @@ export default function CardSearch() {
 
           {hasActiveFilters && (
             <button
-              onClick={() => { clearFilters(); setShowFilters(false) }}
+              onClick={() => { resetFilters(); setShowFilters(false) }}
               className="btn-ghost w-full justify-center"
             >
               <X size={14} /> {t('common.clear')}
@@ -595,7 +630,7 @@ export default function CardSearch() {
         </div>
       )}
 
-      {error && (
+      {error && hasQuery && (
         <div className="card text-center py-8">
           <p className="text-brand-red">{t('cardSearch.searchFailed')}</p>
         </div>
@@ -614,7 +649,7 @@ export default function CardSearch() {
         </div>
       )}
 
-      {data && !isLoading && (
+      {data && !isLoading && hasQuery && (
         <>
           {selectMode && (
             <div className="card flex flex-wrap items-center gap-2 sticky top-2 z-20 bg-bg-elevated/95 backdrop-blur">
@@ -663,11 +698,11 @@ export default function CardSearch() {
             </p>
             {totalPages > 1 && (
               <div className="flex items-center gap-2">
-                <button onClick={() => updateSearchParams({ page: Math.max(1, page - 1) }, { resetPage: false })} disabled={page === 1} className="btn-ghost py-1.5 px-2 disabled:opacity-50">
+                <button onClick={() => updateSearchParams({ page: Math.max(1, page - 1) }, { resetPage: false })} disabled={page <= 1} className="btn-ghost py-1.5 px-2 disabled:opacity-50">
                   <ChevronLeft size={16} />
                 </button>
                 <span className="text-sm text-text-secondary">{page} / {totalPages}</span>
-                <button onClick={() => updateSearchParams({ page: Math.min(totalPages, page + 1) }, { resetPage: false })} disabled={page === totalPages} className="btn-ghost py-1.5 px-2 disabled:opacity-50">
+                <button onClick={() => updateSearchParams({ page: Math.min(totalPages, page + 1) }, { resetPage: false })} disabled={page >= totalPages} className="btn-ghost py-1.5 px-2 disabled:opacity-50">
                   <ChevronRight size={16} />
                 </button>
               </div>
@@ -695,7 +730,7 @@ export default function CardSearch() {
                     className={`card-3d group relative ${selectMode && isSelected ? 'ring-2 ring-brand-red rounded-xl' : ''}`}
                     onClick={() => (selectMode ? toggleSelected(card) : setSelectedCard(card))}
                   >
-                    <div className={`relative aspect-[2.5/3.5] rounded-xl overflow-hidden bg-bg-elevated ring-1 ring-white/5 group-hover:ring-brand-red/40 ${getCardRarityEffectClass(card.rarity, card.lang || card.set_ref?.lang)}`}>
+                    <div className={`relative aspect-[2.5/3.5] rounded-xl overflow-hidden bg-bg-elevated ring-1 ring-white/5 group-hover:ring-brand-red/40 ${getCardVariantEffectClass(card)}`}>
                       {imgSrc
                         ? <img src={imgSrc} alt={card.name} className="w-full h-full object-cover" loading="lazy" />
                         : <div className="w-full h-full flex flex-col items-center justify-center gap-1 p-2">
@@ -704,7 +739,7 @@ export default function CardSearch() {
                       }
                       {selectMode && (
                         <div
-                          className={`absolute bottom-1.5 left-1.5 w-6 h-6 rounded-md flex items-center justify-center border-2 transition-colors pointer-events-none ${
+                          className={`absolute bottom-1.5 left-1.5 z-10 w-6 h-6 rounded-md flex items-center justify-center border-2 transition-colors pointer-events-none ${
                             isSelected
                               ? 'bg-brand-red border-brand-red text-white'
                               : 'bg-bg-elevated/80 border-white/40 backdrop-blur'

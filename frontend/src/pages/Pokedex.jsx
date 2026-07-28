@@ -7,6 +7,7 @@ import { getPokedex } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import PokeBallLoader from '../components/PokeBallLoader'
 import { getSavedListScrollPosition, isSavedPositionForLocation, useListScrollRestoration } from '../hooks/useListScrollRestoration'
+import { getPokedexGeneration } from '../utils/pokedexUrlState'
 
 const GENERATIONS = [
   { id: 1, region: 'Kanto', range: '#001–151' },
@@ -100,20 +101,22 @@ export default function Pokedex() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const { t, settings } = useSettings()
-  const requestedGeneration = Number(searchParams.get('generation'))
-  const [generation, setGeneration] = useState(
-    Number.isInteger(requestedGeneration) && requestedGeneration >= 1 && requestedGeneration <= 9
-      ? requestedGeneration
-      : null
-  )
+  // Keep the URL as the source of truth so browser Back/Forward updates both
+  // the active filter and the query without requiring the page to remount.
+  const generation = getPokedexGeneration(searchParams)
   // The list remounts after Back. Restore non-URL filters before its query runs
   // so the saved Pokémon anchor is present when scroll restoration occurs.
   const savedPosition = getSavedListScrollPosition('pokedex')
   const savedListState = isSavedPositionForLocation(savedPosition, location)
     ? savedPosition.listState
     : null
-  const [status, setStatus] = useState(savedListState?.status || 'all')
-  const [search, setSearch] = useState(savedListState?.search || '')
+  const [status, setStatus] = useState(
+    ['all', 'owned', 'missing'].includes(savedListState?.status) ? savedListState.status : 'all'
+  )
+  const [search, setSearch] = useState(
+    typeof savedListState?.search === 'string' ? savedListState.search : ''
+  )
+  const listState = useMemo(() => ({ status, search }), [search, status])
   const language = settings.language === 'de' ? 'de' : 'en'
 
   const { data, isLoading, isError } = useQuery({
@@ -131,6 +134,7 @@ export default function Pokedex() {
   const { saveScrollPosition, createDetailNavigationState } = useListScrollRestoration({
     key: 'pokedex',
     isReady: !isLoading && !isError && entries.length > 0,
+    listState,
   })
   const grouped = useMemo(() => {
     if (generation || search.trim()) return [{ generation, entries }]
@@ -144,7 +148,6 @@ export default function Pokedex() {
   const progress = summary.total ? Math.round((summary.owned / summary.total) * 100) : 0
   const scope = generation ? GENERATIONS.find((item) => item.id === generation) : null
   const selectGeneration = (value) => {
-    setGeneration(value)
     if (value) setSearchParams({ generation: String(value) })
     else setSearchParams({})
   }
@@ -243,7 +246,7 @@ export default function Pokedex() {
                   t={t}
                   onClick={() => {
                     const anchorId = `pokemon-${entry.dex_id}`
-                    saveScrollPosition(anchorId, { status, search })
+                    saveScrollPosition(anchorId, listState)
                     navigate(`/pokedex/${entry.dex_id}${generation ? `?generation=${generation}` : ''}`, {
                       state: createDetailNavigationState(anchorId),
                     })
