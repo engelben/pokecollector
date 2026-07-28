@@ -190,7 +190,7 @@ def _card_payload(card: Card | None) -> dict | None:
         "price_mid", "price_high", "price_trend", "price_avg1", "price_avg7", "price_avg30",
         "price_market_holo", "price_low_holo", "price_trend_holo", "price_avg1_holo",
         "price_avg7_holo", "price_avg30_holo", "cardmarket_products", "variants_normal",
-        "variants_reverse", "variants_holo", "variants_first_edition",
+        "variants_reverse", "variants_holo", "variants_first_edition", "dex_ids",
     ]
     payload = {field: getattr(card, field, None) for field in fields}
     if card.set_ref:

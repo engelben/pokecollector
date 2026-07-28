@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { Plus, Heart, BookOpen, X, PenLine, Pencil, Trash2, ExternalLink } from 'lucide-react'
-import { addToCollection, addToWishlist, createCustomCard, updateCustomCard, updateCardCustomImage, deleteCustomCard, getSets, getPriceHistory } from '../api/client'
+import { addToCollection, addToWishlist, createCustomCard, updateCustomCard, updateCardCustomImage, deleteCustomCard, getSets, getPriceHistory, getWishlists } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
@@ -21,16 +21,45 @@ import { cardmarketLinks } from '../utils/cardmarket'
 import CardStateIndicators from './CardStateIndicators'
 import { getCardVariantEffectClass } from '../utils/cardVariantEffect'
 
-function askWishlistQuantity(t, defaultQuantity = 1) {
-  const initialQuantity = Math.max(1, Math.min(99, parseInt(defaultQuantity, 10) || 1))
-  const input = window.prompt(t('wishlist.quantityPrompt'), String(initialQuantity))
-  if (input === null) return null
-  const quantity = parseInt(input, 10)
-  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
-    toast.error(t('wishlist.quantityInvalid'))
-    return null
+function WishlistAddButton({ card, className, iconSize = 16, onAdded }) {
+  const { t } = useSettings()
+  const queryClient = useQueryClient()
+  const [selecting, setSelecting] = useState(false)
+  const [selectedId, setSelectedId] = useState('')
+  const { data: allWishlists = [], isLoading } = useQuery({ queryKey: ['wishlists'], queryFn: getWishlists })
+  const wishlists = allWishlists.filter(list => !list.is_archived)
+  const mutation = useMutation({
+    mutationFn: (wishlistId) => addToWishlist({ card_id: card.id, quantity: 1, ...(wishlistId ? { wishlist_id: Number(wishlistId) } : {}) }),
+    onSuccess: () => {
+      toast.success(`${card.name} ${t('card.addedToWishlist')}`)
+      invalidateCardState(queryClient)
+      invalidateTcgdexFilterLanguages(queryClient)
+      setSelecting(false)
+      onAdded?.()
+    },
+    onError: () => toast.error(t('card.wishlistFailed')),
+  })
+  const add = (event) => {
+    event.stopPropagation()
+    if (wishlists.length > 1) {
+      setSelectedId(String(wishlists.find(list => list.is_default)?.id || wishlists[0].id))
+      setSelecting(true)
+    } else {
+      mutation.mutate(wishlists[0]?.id)
+    }
   }
-  return quantity
+
+  return <>
+    <button type="button" className={className} onClick={add} disabled={isLoading || mutation.isPending} aria-label={t('wishlist.addToList')}><Heart size={iconSize} /></button>
+    {selecting && createPortal(
+      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" onClick={(event) => { event.stopPropagation(); setSelecting(false) }}>
+        <div className="card w-full max-w-sm space-y-4" role="dialog" aria-modal="true" aria-labelledby="wishlist-picker-title" onClick={(event) => event.stopPropagation()}>
+          <div className="flex items-center justify-between gap-3"><h2 id="wishlist-picker-title" className="font-bold text-text-primary">{t('wishlist.chooseList')}</h2><button type="button" className="btn-ghost p-2" onClick={() => setSelecting(false)} aria-label={t('common.close')}><X size={16} /></button></div>
+          <label className="block text-xs text-text-muted">{t('wishlist.lists')}<select className="select mt-1 w-full" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{wishlists.map(list => <option key={list.id} value={list.id}>{list.name}</option>)}</select></label>
+          <div className="flex justify-end gap-2"><button type="button" className="btn-ghost" onClick={() => setSelecting(false)}>{t('common.cancel')}</button><button type="button" className="btn-primary" disabled={!selectedId || mutation.isPending} onClick={() => mutation.mutate(selectedId)}><Heart size={16} /> {t('wishlist.addToList')}</button></div>
+        </div>
+      </div>, document.body)}
+  </>
 }
 
 const RARITY_COLORS = {
@@ -404,16 +433,6 @@ export const CardItem = memo(function CardItem({ card, showActions = true, onAdd
     onError: () => toast.error(t('card.addFailed')),
   })
 
-  const wishlistMutation = useMutation({
-    mutationFn: (data) => addToWishlist(data),
-    onSuccess: () => {
-      toast.success(`${card.name} ${t('card.addedToWishlist')}`)
-      invalidateCardState(queryClient)
-      invalidateTcgdexFilterLanguages(queryClient)
-    },
-    onError: () => toast.error(t('card.wishlistFailed')),
-  })
-
   const cardImage = card.images?.small || resolveCardImageUrl(card) || (card.image ? `${card.image}/low.webp` : null)
   const cardName = card.name
   const cardRarity = card.rarity
@@ -509,15 +528,7 @@ export const CardItem = memo(function CardItem({ card, showActions = true, onAdd
               }}>
               <Plus size={12} /> {t('common.add')}
             </button>
-            <button
-              className="bg-bg-surface hover:bg-bg-elevated text-text-secondary hover:text-pink-400 text-xs px-2 py-1.5 rounded-lg transition-all"
-              onClick={(e) => {
-                e.stopPropagation()
-                const wishlistQuantity = askWishlistQuantity(t, 1)
-                if (wishlistQuantity) wishlistMutation.mutate({ card_id: card.id, quantity: wishlistQuantity })
-              }}>
-              <Heart size={12} />
-            </button>
+            <WishlistAddButton card={card} iconSize={12} className="bg-bg-surface hover:bg-bg-elevated text-text-secondary hover:text-pink-400 text-xs px-2 py-1.5 rounded-lg transition-all" />
             {onAddToBinder && (
               <button
                 className="bg-bg-surface hover:bg-bg-elevated text-text-secondary hover:text-blue text-xs px-2 py-1.5 rounded-lg transition-all"
@@ -650,17 +661,6 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
       onClose()
     },
     onError: () => toast.error(t('card.addFailed')),
-  })
-
-  const wishlistMutation = useMutation({
-    mutationFn: (data) => addToWishlist(data),
-    onSuccess: () => {
-      toast.success(`${card.name} ${t('card.addedToWishlist')}`)
-      invalidateCardState(queryClient)
-      invalidateTcgdexFilterLanguages(queryClient)
-      onClose()
-    },
-    onError: () => toast.error(t('card.wishlistFailed')),
   })
 
   const customImageMutation = useMutation({
@@ -1106,10 +1106,7 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
                 })} disabled={addMutation.isPending || !exchangeRateReady}>
                   <Plus size={16} /> {addMutation.isPending ? t('card.adding') : t('card.addToCollection')}
                 </button>
-                <button className="btn-ghost" onClick={() => wishlistMutation.mutate({ card_id: card.id, quantity: Math.max(1, Math.min(99, quantity)) })}
-                  disabled={wishlistMutation.isPending}>
-                  <Heart size={16} />
-                </button>
+                <WishlistAddButton card={card} className="btn-ghost" onAdded={onClose} />
                 {card.is_custom && onEdit && (
                   <button
                     className="btn-ghost text-yellow border-yellow/30 hover:bg-yellow/10 flex items-center gap-1.5"
