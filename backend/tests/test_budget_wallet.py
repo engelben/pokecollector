@@ -2,8 +2,9 @@ from datetime import date
 import ast
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
-from api.budget import _price_cents, _purchase_rule_bucket
+from api.budget import _add_confirmed_plan_to_collection, _default_collection_variant, _price_cents, _purchase_rule_bucket
 from models import BudgetDraftCart, BudgetDraftCartItem
 
 
@@ -31,6 +32,53 @@ def test_price_cents_uses_trend_first():
 def test_price_cents_returns_none_without_prices():
     card = SimpleNamespace(price_trend=None, price_market=None, price_low=None, price_avg7=None, price_avg30=None)
     assert _price_cents(card) is None
+
+
+def test_confirmed_collection_variant_prefers_a_real_available_print():
+    reverse_only = SimpleNamespace(
+        variants_normal=False,
+        variants_reverse=True,
+        variants_holo=True,
+        variants_first_edition=False,
+    )
+    assert _default_collection_variant(reverse_only) == "Reverse Holo"
+
+
+def test_confirmed_collection_variant_defaults_to_normal_for_legacy_cards():
+    legacy = SimpleNamespace(
+        variants_normal=None,
+        variants_reverse=None,
+        variants_holo=None,
+        variants_first_edition=None,
+    )
+    assert _default_collection_variant(legacy) == "Normal"
+
+
+def test_confirmed_purchase_adds_quantity_and_actual_unit_price_to_collection():
+    card = SimpleNamespace(
+        id="sv1-1_en", lang="en", variants_normal=True, variants_reverse=False,
+        variants_holo=False, variants_first_edition=False,
+    )
+    plan_item = SimpleNamespace(card_id=card.id, quantity=2, actual_unit_price_cents=345)
+    db = MagicMock()
+    card_query, collection_query = MagicMock(), MagicMock()
+    db.query.side_effect = [card_query, collection_query]
+    card_query.filter.return_value.all.return_value = [card]
+    collection_query.filter.return_value.first.return_value = None
+
+    _add_confirmed_plan_to_collection(
+        db,
+        SimpleNamespace(user_id=7),
+        SimpleNamespace(items=[plan_item]),
+    )
+
+    added = db.add.call_args.args[0]
+    assert added.user_id == 7
+    assert added.card_id == card.id
+    assert added.quantity == 2
+    assert added.condition == "NM"
+    assert added.variant == "Normal"
+    assert added.purchase_price == 3.45
 
 
 def test_open_or_trade_rule_is_never_purchasable():

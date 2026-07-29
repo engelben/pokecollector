@@ -214,6 +214,7 @@ export const createBudgetPlan = (data) => api.post('/budget/plans', data).then(r
 export const getBudgetPlans = (userId = null) => api.get('/budget/plans', { params: userId ? { user_id: userId } : {} }).then(r => r.data)
 export const submitBudgetPlan = (id, data = {}) => api.post(`/budget/plans/${id}/submit`, data).then(r => r.data)
 export const confirmBudgetPlan = (id, data) => api.post(`/budget/plans/${id}/confirm`, data).then(r => r.data)
+export const returnBudgetPlan = (id) => api.post(`/budget/plans/${id}/return`).then(r => r.data)
 export const cancelBudgetPlan = (id) => api.post(`/budget/plans/${id}/cancel`).then(r => r.data)
 
 // Analytics

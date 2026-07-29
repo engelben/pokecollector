@@ -17,6 +17,7 @@ from models import (
     BudgetPurchasePlan,
     BudgetPurchasePlanItem,
     Card,
+    CollectionItem,
     User,
     WishlistItem,
 )
@@ -25,6 +26,7 @@ router = APIRouter()
 
 LEDGER_TYPES = {"weekly_allowance", "parent_adjustment", "gift", "purchase", "refund", "correction"}
 PLAN_STATUSES = {"draft", "pending_approval", "confirmed", "cancelled"}
+RETURNED_FOR_EDITS_NOTE = "[returned_for_edits]"
 
 
 class BudgetAccountUpsert(BaseModel):
@@ -145,6 +147,52 @@ def _price_cents(card: Card) -> int | None:
         if raw is not None and raw >= 0:
             return int(round(float(raw) * 100))
     return None
+
+
+def _default_collection_variant(card: Card) -> str:
+    """Match the card modal's default while avoiding impossible Normal rows."""
+    if card.variants_normal:
+        return "Normal"
+    if card.variants_reverse:
+        return "Reverse Holo"
+    if card.variants_holo:
+        return "Holo"
+    if card.variants_first_edition:
+        return "First Edition"
+    return "Normal"
+
+
+def _add_confirmed_plan_to_collection(db: Session, account: BudgetAccount, plan: BudgetPurchasePlan) -> None:
+    card_ids = [item.card_id for item in plan.items if item.card_id]
+    cards = {card.id: card for card in db.query(Card).filter(Card.id.in_(card_ids)).all()} if card_ids else {}
+    if len(cards) != len({item.card_id for item in plan.items}):
+        raise HTTPException(status_code=409, detail="Every purchased card must still be available before it can be added to the collection")
+
+    for item in plan.items:
+        card = cards[item.card_id]
+        variant = _default_collection_variant(card)
+        purchase_price = item.actual_unit_price_cents / 100
+        existing = db.query(CollectionItem).filter(
+            CollectionItem.user_id == account.user_id,
+            CollectionItem.card_id == card.id,
+            CollectionItem.condition == "NM",
+            CollectionItem.variant == variant,
+            CollectionItem.lang == (card.lang or "en"),
+            CollectionItem.purchase_price == purchase_price,
+        ).first()
+        if existing:
+            existing.quantity += item.quantity
+        else:
+            db.add(CollectionItem(
+                user_id=account.user_id,
+                card_id=card.id,
+                quantity=item.quantity,
+                condition="NM",
+                variant=variant,
+                lang=card.lang or "en",
+                purchase_price=purchase_price,
+                added_at=datetime.utcnow(),
+            ))
 
 
 def _as_date(value) -> date | None:
@@ -570,7 +618,7 @@ def list_plans(user_id: int | None = Query(default=None), session: AuthSession =
     ).order_by(BudgetPurchasePlan.created_at.desc(), BudgetPurchasePlan.id.desc()).limit(50).all()
     return [{
         "id": plan.id,
-        "status": plan.status,
+        "status": "returned_for_edits" if plan.status == "cancelled" and (plan.note or "").startswith(RETURNED_FOR_EDITS_NOTE) else plan.status,
         "estimated_card_total_cents": plan.estimated_card_total_cents,
         "actual_card_total_cents": plan.actual_card_total_cents,
         "shipping_cents": plan.shipping_cents,
@@ -639,6 +687,7 @@ def confirm_plan(plan_id: int, data: PurchasePlanConfirm, session: AuthSession =
     balance = _balance(db, account.id)
     if debit > balance:
         raise HTTPException(status_code=400, detail="The confirmed purchase exceeds the available balance")
+    _add_confirmed_plan_to_collection(db, account, plan)
     plan.status = "confirmed"
     plan.actual_card_total_cents = card_total
     plan.shipping_cents = data.shipping_cents
@@ -657,6 +706,65 @@ def confirm_plan(plan_id: int, data: PurchasePlanConfirm, session: AuthSession =
     ))
     db.commit()
     return _account_payload(db, account)
+
+
+@router.post("/plans/{plan_id}/return")
+def return_plan_for_edits(plan_id: int, session: AuthSession = Depends(get_auth_session), db: Session = Depends(get_db)):
+    """Return a submitted plan to the applicant's editable draft cart."""
+    if session.current_user.id != session.actor_user.id:
+        raise HTTPException(status_code=403, detail="Switch back to the managing profile to return purchases")
+
+    plan = db.query(BudgetPurchasePlan).filter(
+        BudgetPurchasePlan.id == plan_id,
+        BudgetPurchasePlan.status == "pending_approval",
+    ).with_for_update().first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Pending purchase plan not found")
+    db.refresh(plan, attribute_names=["items"])
+    account = db.query(BudgetAccount).filter(BudgetAccount.id == plan.account_id).first()
+    _target_user(db, session, account.user_id, manage=True)
+
+    card_ids = [item.card_id for item in plan.items if item.card_id]
+    cards = {
+        card.id: card for card in db.query(Card).options(joinedload(Card.set_ref)).filter(Card.id.in_(card_ids)).all()
+    } if card_ids else {}
+    if not cards:
+        raise HTTPException(status_code=409, detail="None of the basket cards are still available to edit")
+
+    cart = db.query(BudgetDraftCart).filter(
+        BudgetDraftCart.account_id == account.id,
+    ).with_for_update().first()
+    if not cart:
+        cart = BudgetDraftCart(account_id=account.id)
+        db.add(cart)
+        db.flush()
+    else:
+        db.refresh(cart, attribute_names=["items"])
+    existing = {item.card_id: item for item in cart.items}
+    for item in plan.items:
+        card = cards.get(item.card_id)
+        if not card:
+            continue
+        if card.id in existing:
+            existing[card.id].quantity = min(99, existing[card.id].quantity + item.quantity)
+            continue
+        db.add(BudgetDraftCartItem(
+            cart_id=cart.id,
+            card_id=card.id,
+            quantity=min(99, item.quantity),
+            card_name_snapshot=card.name,
+            set_name_snapshot=card.set_ref.name if card.set_ref else card.set_id,
+            card_number_snapshot=card.number,
+            image_snapshot=card.images_small or card.images_large or card.custom_image_url,
+            estimated_unit_price_cents=item.estimated_unit_price_cents,
+            cardmarket_url_snapshot=item.cardmarket_url_snapshot,
+        ))
+    plan.status = "cancelled"
+    plan.cancelled_at = datetime.utcnow()
+    plan.note = f"{RETURNED_FOR_EDITS_NOTE}\n{plan.note}" if plan.note else RETURNED_FOR_EDITS_NOTE
+    cart.updated_at = datetime.utcnow()
+    db.commit()
+    return {"id": plan.id, "status": "returned_for_edits", "cart": _cart_payload(db, account)}
 
 
 @router.post("/plans/{plan_id}/cancel")
