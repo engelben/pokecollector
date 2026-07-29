@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import {
-  Archive, Check, Copy, Download, Edit2, ExternalLink, Heart, Library,
-  Grid2X2, List, Minus, MoveRight, Plus, Save, Search, Trash2, X,
+  Archive, ArrowDown, ArrowUp, BookOpen, Check, Copy, Download, Edit2, ExternalLink, Heart, Library,
+  Circle, Grid2X2, List, Medal, Minus, MoveRight, Plus, Save, Search, SlidersHorizontal, Sparkles, SquareAsterisk, Trash2, X,
 } from 'lucide-react'
 import {
   addToCollection, createWishlist, deleteWishlist, exportWishlist,
@@ -11,6 +12,7 @@ import {
 } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import CardImage from '../components/CardImage'
+import FallbackBadges from '../components/FallbackBadges'
 import PokeBallLoader from '../components/PokeBallLoader'
 import TabNav from '../components/TabNav'
 import { getEffectiveCardPrice } from '../utils/prices'
@@ -27,6 +29,34 @@ const PURCHASE_RULES = [
   ['parent_approval_required', 'Parent approval required'],
 ]
 
+const CONDITION_META = {
+  Mint: ['MT', 'bg-cyan-500 text-white'],
+  NM: ['NM', 'bg-green-500 text-white'],
+  EX: ['EX', 'bg-lime-700 text-white'],
+  GD: ['GD', 'bg-amber-400 text-slate-950'],
+  LP: ['LP', 'bg-orange-400 text-white'],
+  MP: ['PL', 'bg-rose-400 text-white'],
+  HP: ['PO', 'bg-red-500 text-white'],
+}
+const VARIANT_META = {
+  Normal: [Circle, 'text-text-secondary'],
+  Holo: [Sparkles, 'text-purple-400'],
+  'Reverse Holo': [SquareAsterisk, 'text-blue'],
+  'First Edition': [Medal, 'text-gold'],
+}
+
+function ConditionPill({ condition, t }) {
+  if (!condition || condition === 'Any') return <span className="rounded-full bg-bg-elevated px-2 py-1 text-[10px] text-text-muted">{t('wishlist.anyCondition')}</span>
+  const [label, className] = CONDITION_META[condition] || [condition, 'bg-bg-elevated text-text-secondary']
+  return <span className={`inline-flex min-w-8 items-center justify-center rounded-full px-2 py-1 text-[10px] font-black ${className}`} title={condition}>{label}</span>
+}
+
+function VariantPill({ variant, t }) {
+  if (!variant || variant === 'Any') return <span className="rounded-full bg-bg-elevated px-2 py-1 text-[10px] text-text-muted">{t('wishlist.anyVariant')}</span>
+  const [Icon, color] = VARIANT_META[variant] || [Circle, 'text-text-secondary']
+  return <span className="inline-flex items-center gap-1 rounded-full bg-bg-elevated px-2 py-1 text-[10px] text-text-secondary"><Icon size={12} className={color} />{variant}</span>
+}
+
 function normalizeDexIds(value) {
   const rawValues = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[;,\s]+/) : [value]
   return [...new Set(rawValues.map(Number).filter(id => Number.isInteger(id) && id > 0))]
@@ -36,14 +66,42 @@ function isPokemonCard(card) {
   return String(card?.category || card?.supertype || '').toLowerCase() === 'pokemon'
 }
 
-function WishlistActions({ item, onEdit, onRemove, onAddToCollection, t }) {
+function WishlistActions({ item, onEdit, onRemove, onAddToCollection, t, compact = false }) {
   return (
-    <div className="mt-3 flex flex-wrap gap-2" data-cart-action-area="wishlist-card">
-      {/* BudgetCartButton is intentionally composed here after the wallet feature is integrated. */}
-      <button type="button" className="btn-ghost min-h-10 py-1.5" onClick={onEdit} aria-label={t('wishlist.editCard')}><Edit2 size={15} /> {t('common.edit')}</button>
-      {item.cardmarket_url && <a className="btn-ghost min-h-10 py-1.5" href={item.cardmarket_url} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Cardmarket</a>}
-      <button type="button" className="btn-ghost min-h-10 py-1.5" onClick={onAddToCollection}><Plus size={15} /> {t('wishlist.addToCollection')}</button>
+    <div className={`${compact ? 'flex justify-end gap-1' : 'mt-3 flex flex-wrap gap-2'}`} data-cart-action-area="wishlist-card">
+      <button type="button" className={`btn-ghost ${compact ? 'min-h-8 p-1.5' : 'min-h-10 py-1.5'}`} onClick={onEdit} aria-label={t('wishlist.editCard')}><Edit2 size={15} /> {!compact && t('common.edit')}</button>
+      {item.cardmarket_url && <a className={`btn-ghost ${compact ? 'min-h-8 p-1.5' : 'min-h-10 py-1.5'}`} href={item.cardmarket_url} target="_blank" rel="noreferrer" aria-label="Cardmarket"><ExternalLink size={15} /> {!compact && 'Cardmarket'}</a>}
+      <button type="button" className={`btn-ghost ${compact ? 'min-h-8 p-1.5' : 'min-h-10 py-1.5'}`} onClick={onAddToCollection} aria-label={t('wishlist.addToCollection')}><Plus size={15} /> {!compact && t('wishlist.addToCollection')}</button>
       <button type="button" className="btn-ghost min-h-10 py-1.5 text-brand-red" onClick={onRemove} aria-label={t('wishlist.removeCard')}><Trash2 size={15} /> <span className="sr-only">{t('wishlist.removeCard')}</span></button>
+    </div>
+  )
+}
+
+function QuickQuantity({ item, onChanged, t }) {
+  const [quantity, setQuantity] = useState(item.quantity || 1)
+  const mutation = useMutation({
+    mutationFn: (nextQuantity) => updateWishlistItem(item.id, { quantity: nextQuantity }),
+    onSuccess: (updated) => {
+      setQuantity(updated?.data?.quantity || quantity)
+      onChanged()
+    },
+  })
+
+  useEffect(() => setQuantity(item.quantity || 1), [item.id, item.quantity])
+  const change = (delta) => {
+    if (mutation.isPending) return
+    const nextQuantity = Math.min(99, Math.max(1, quantity + delta))
+    if (nextQuantity !== quantity) {
+      setQuantity(nextQuantity)
+      mutation.mutate(nextQuantity, { onError: () => setQuantity(item.quantity || 1) })
+    }
+  }
+
+  return (
+    <div className="inline-flex items-center rounded-lg border border-border bg-bg-card" aria-label={t('wishlist.quickQuantity')}>
+      <button type="button" className="min-h-9 px-2 text-text-secondary disabled:opacity-30" disabled={quantity <= 1 || mutation.isPending} onClick={() => change(-1)} aria-label={t('wishlist.decreaseQuantity')}><Minus size={14} /></button>
+      <span className="min-w-8 text-center text-xs font-semibold text-text-primary" aria-live="polite">{quantity}</span>
+      <button type="button" className="min-h-9 px-2 text-text-secondary disabled:opacity-30" disabled={quantity >= 99 || mutation.isPending} onClick={() => change(1)} aria-label={t('wishlist.increaseQuantity')}><Plus size={14} /></button>
     </div>
   )
 }
@@ -96,7 +154,7 @@ function ListEditor({ list, onClose }) {
   )
 }
 
-function ItemEditor({ item, lists, onClose }) {
+function ItemEditor({ item, lists, onClose, t }) {
   const queryClient = useQueryClient()
   const [quantity, setQuantity] = useState(item.quantity || 1)
   const [variant, setVariant] = useState(item.desired_variant || 'Any')
@@ -107,6 +165,8 @@ function ItemEditor({ item, lists, onClose }) {
   const [labels, setLabels] = useState((item.purpose_labels || []).join(', '))
   const [notes, setNotes] = useState(item.notes || '')
   const [cardmarketUrl, setCardmarketUrl] = useState(item.cardmarket_url || '')
+  const [alertAbove, setAlertAbove] = useState(item.price_alert_above ?? '')
+  const [alertBelow, setAlertBelow] = useState(item.price_alert_below ?? '')
   const [targetList, setTargetList] = useState('')
 
   const refresh = () => {
@@ -127,6 +187,8 @@ function ItemEditor({ item, lists, onClose }) {
       purpose_labels: labels.split(',').map(label => label.trim()).filter(Boolean),
       notes: notes || null,
       cardmarket_url: cardmarketUrl || null,
+      price_alert_above: alertAbove === '' ? null : Number(alertAbove),
+      price_alert_below: alertBelow === '' ? null : Number(alertBelow),
     }),
     onSuccess: () => {
       refresh()
@@ -179,6 +241,12 @@ function ItemEditor({ item, lists, onClose }) {
         <label className="text-xs text-text-muted sm:col-span-2">Cardmarket URL
           <input className="input mt-1 w-full" value={cardmarketUrl} onChange={(event) => setCardmarketUrl(event.target.value)} />
         </label>
+        <label className="text-xs text-text-muted">{t('wishlist.aboveLabel')}
+          <input className="input mt-1 w-full" type="number" min="0" step="0.01" value={alertAbove} onChange={(event) => setAlertAbove(event.target.value)} />
+        </label>
+        <label className="text-xs text-text-muted">{t('wishlist.belowLabel')}
+          <input className="input mt-1 w-full" type="number" min="0" step="0.01" value={alertBelow} onChange={(event) => setAlertBelow(event.target.value)} />
+        </label>
         <label className="text-xs text-text-muted sm:col-span-2">Notes
           <input className="input mt-1 w-full" value={notes} onChange={(event) => setNotes(event.target.value)} />
         </label>
@@ -207,6 +275,14 @@ export default function Wishlist() {
   const [affordableMax, setAffordableMax] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [speciesId, setSpeciesId] = useState('')
+  const [setId, setSetId] = useState('')
+  const [rarity, setRarity] = useState('')
+  const [minPrice, setMinPrice] = useState('')
+  const [maxPrice, setMaxPrice] = useState('')
+  const [hasAlert, setHasAlert] = useState(false)
+  const [sortBy, setSortBy] = useState('added')
+  const [sortDirection, setSortDirection] = useState('desc')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [viewMode, setViewMode] = useState(() => {
     const saved = window.localStorage.getItem('wishlist-view')
     if (saved === 'grid' || saved === 'list') return saved
@@ -237,14 +313,31 @@ export default function Wishlist() {
     .flatMap(item => normalizeDexIds(item.card?.dex_ids)))]
     .sort((a, b) => a - b)
     .map(id => ({ id, name: speciesById.get(id) || `#${String(id).padStart(3, '0')}` })), [items, speciesById])
+  const setOptions = useMemo(() => [...new Map(items.map(({ card = {} }) => {
+    const id = card.set_id || card.set_ref?.id
+    return [id, { id, name: card.set_ref?.name || card.set_name || id }]
+  }).filter(([id]) => id)).values()].sort((a, b) => String(a.name).localeCompare(String(b.name))), [items])
+  const rarityOptions = useMemo(() => [...new Set(items.map(item => item.card?.rarity).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [items])
 
   useEffect(() => { window.localStorage.setItem('wishlist-view', viewMode) }, [viewMode])
   useEffect(() => {
     if (speciesId && !speciesOptions.some(option => String(option.id) === speciesId)) setSpeciesId('')
   }, [activeList?.id, speciesId, speciesOptions])
+  useEffect(() => {
+    if (setId && !setOptions.some(option => String(option.id) === setId)) setSetId('')
+    if (rarity && !rarityOptions.includes(rarity)) setRarity('')
+  }, [activeList?.id, rarity, rarityOptions, setId, setOptions])
+
+  const clearFilters = () => {
+    setSearchTerm(''); setSpeciesId(''); setSetId(''); setRarity('')
+    setAffordableMax(''); setMinPrice(''); setMaxPrice(''); setHasAlert(false)
+  }
+  const filtersActive = Boolean(searchTerm || speciesId || setId || rarity || affordableMax || minPrice || maxPrice || hasAlert)
 
   const visibleItems = useMemo(() => {
     const max = affordableMax === '' ? null : Number(affordableMax)
+    const filterMin = minPrice === '' ? null : Number(minPrice)
+    const filterMax = maxPrice === '' ? null : Number(maxPrice)
     const search = normalizeSearchText(searchTerm)
     const selectedSpecies = Number(speciesId)
     return [...items]
@@ -255,12 +348,24 @@ export default function Wishlist() {
         const searchable = [card.name, card.set_ref?.name, card.set_name, card.set_id, card.number, card.artist, ...speciesNames].map(normalizeSearchText).join(' ')
         if (search && !searchable.includes(search)) return false
         if (speciesId && (!isPokemonCard(card) || !dexIds.includes(selectedSpecies))) return false
-        if (max == null || Number.isNaN(max)) return true
         const price = getEffectiveCardPrice(card, item.desired_variant === 'Any' ? null : item.desired_variant, pricePrimaryField)
-        return price != null && price <= max
+        if (setId && String(card.set_id || card.set_ref?.id) !== setId) return false
+        if (rarity && card.rarity !== rarity) return false
+        if (hasAlert && item.price_alert_above == null && item.price_alert_below == null) return false
+        if (max != null && !Number.isNaN(max) && (price == null || price > max)) return false
+        if (filterMin != null && !Number.isNaN(filterMin) && (price == null || price < filterMin)) return false
+        if (filterMax != null && !Number.isNaN(filterMax) && (price == null || price > filterMax)) return false
+        return true
       })
-      .sort((a, b) => (b.priority || 0) - (a.priority || 0) || String(a.card?.name || '').localeCompare(String(b.card?.name || '')))
-  }, [items, affordableMax, pricePrimaryField, searchTerm, speciesId, speciesById])
+      .sort((a, b) => {
+        let comparison
+        if (sortBy === 'priority') comparison = (a.priority || 0) - (b.priority || 0)
+        else if (sortBy === 'name') comparison = String(a.card?.name || '').localeCompare(String(b.card?.name || ''))
+        else if (sortBy === 'price') comparison = (getEffectiveCardPrice(a.card, a.desired_variant === 'Any' ? null : a.desired_variant, pricePrimaryField) ?? -1) - (getEffectiveCardPrice(b.card, b.desired_variant === 'Any' ? null : b.desired_variant, pricePrimaryField) ?? -1)
+        else comparison = new Date(a.created_at || 0) - new Date(b.created_at || 0)
+        return sortDirection === 'asc' ? comparison : -comparison
+      })
+  }, [items, affordableMax, hasAlert, maxPrice, minPrice, pricePrimaryField, rarity, searchTerm, setId, sortBy, sortDirection, speciesId, speciesById])
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['wishlist-items'] })
@@ -300,6 +405,7 @@ export default function Wishlist() {
 
   const tabs = [
     { to: '/collection', label: t('nav.collection'), icon: Library },
+    { to: '/binders', label: t('nav.binders'), icon: BookOpen },
     { to: '/wishlist', label: t('nav.wishlist'), icon: Heart, badge: activeList?.item_count || 0 },
   ]
 
@@ -344,9 +450,6 @@ export default function Wishlist() {
                 <h2 className="truncate text-lg font-bold text-text-primary">{activeList.name}</h2>
                 {activeList.description && <p className="text-sm text-text-muted">{activeList.description}</p>}
               </div>
-              <label className="flex items-center gap-2 text-xs text-text-muted">Affordable under
-                <input className="input w-24 py-1.5" type="number" min="0" step="0.01" value={affordableMax} onChange={(event) => setAffordableMax(event.target.value)} placeholder="€" />
-              </label>
               <button type="button" className="btn-ghost" onClick={() => setEditingList(activeList)}><Edit2 size={15} /> Edit</button>
               <button type="button" className="btn-ghost" onClick={() => exportList('txt')}><Download size={15} /> Cardmarket</button>
               <button type="button" className="btn-ghost" onClick={() => exportList('csv')}><Download size={15} /> CSV</button>
@@ -355,22 +458,37 @@ export default function Wishlist() {
           )}
 
           <section className="card space-y-3" aria-label={t('wishlist.filters')}>
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(180px,240px)_auto] sm:items-end">
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
               <label className="block text-xs text-text-muted">{t('wishlist.search')}
                 <span className="relative mt-1 block"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" /><input className="input w-full pl-9" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={t('wishlist.search')} /></span>
               </label>
-              <label className="block text-xs text-text-muted">{t('wishlist.species')}
-                <select className="select mt-1 w-full" value={speciesId} onChange={(event) => setSpeciesId(event.target.value)}>
-                  <option value="">{t('wishlist.allSpecies')}</option>
-                  {speciesOptions.map(option => <option key={option.id} value={option.id}>#{String(option.id).padStart(3, '0')} {option.name}</option>)}
-                </select>
-              </label>
+              <button type="button" className={`btn-ghost ${filtersActive ? 'border-brand-red text-brand-red' : ''}`} onClick={() => setFiltersOpen(value => !value)} aria-expanded={filtersOpen}><SlidersHorizontal size={16} /> {t('wishlist.filters')}{filtersActive && <span className="h-2 w-2 rounded-full bg-brand-red" />}</button>
               <div className="flex rounded-lg border border-border p-1" role="group" aria-label={t('wishlist.viewMode')}>
                 <button type="button" className={`min-h-10 rounded-md px-3 ${viewMode === 'grid' ? 'bg-brand-red text-white' : 'text-text-muted'}`} onClick={() => setViewMode('grid')} aria-label={t('wishlist.gridView')} aria-pressed={viewMode === 'grid'}><Grid2X2 size={18} /></button>
                 <button type="button" className={`min-h-10 rounded-md px-3 ${viewMode === 'list' ? 'bg-brand-red text-white' : 'text-text-muted'}`} onClick={() => setViewMode('list')} aria-label={t('wishlist.listView')} aria-pressed={viewMode === 'list'}><List size={18} /></button>
               </div>
             </div>
-            <p className="text-sm font-medium text-text-secondary">{t('wishlist.resultCount').replace('{shown}', visibleItems.length).replace('{total}', items.length)}</p>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="min-w-40 flex-1 text-xs text-text-muted">{t('wishlist.sortBy')}
+                <select className="select mt-1 w-full" value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+                  <option value="added">{t('wishlist.sortAdded')}</option><option value="price">{t('wishlist.sortPrice')}</option><option value="name">{t('wishlist.sortName')}</option><option value="priority">{t('wishlist.priority')}</option>
+                </select>
+              </label>
+              <button type="button" className="btn-ghost" onClick={() => setSortDirection(value => value === 'asc' ? 'desc' : 'asc')} aria-label={sortDirection === 'asc' ? t('wishlist.sortAscending') : t('wishlist.sortDescending')}>
+                {sortDirection === 'asc' ? <ArrowUp size={16} /> : <ArrowDown size={16} />} {sortDirection === 'asc' ? t('wishlist.ascending') : t('wishlist.descending')}
+              </button>
+            </div>
+            {filtersOpen && <div className="grid gap-3 rounded-xl border border-border bg-bg-elevated/30 p-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="text-xs text-text-muted">{t('wishlist.species')}<select className="select mt-1 w-full" value={speciesId} onChange={(event) => setSpeciesId(event.target.value)}><option value="">{t('wishlist.allSpecies')}</option>{speciesOptions.map(option => <option key={option.id} value={option.id}>#{String(option.id).padStart(3, '0')} {option.name}</option>)}</select></label>
+              <label className="text-xs text-text-muted">{t('wishlist.filterSet')}<select className="select mt-1 w-full" value={setId} onChange={(event) => setSetId(event.target.value)}><option value="">{t('wishlist.allSets')}</option>{setOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
+              <label className="text-xs text-text-muted">{t('wishlist.filterRarity')}<select className="select mt-1 w-full" value={rarity} onChange={(event) => setRarity(event.target.value)}><option value="">{t('wishlist.allRarities')}</option>{rarityOptions.map(value => <option key={value}>{value}</option>)}</select></label>
+              <label className="text-xs text-text-muted">{t('wishlist.affordableUnder')}<input className="input mt-1 w-full" type="number" min="0" step="0.01" value={affordableMax} onChange={(event) => setAffordableMax(event.target.value)} /></label>
+              <label className="text-xs text-text-muted">{t('wishlist.filterMinPrice')}<input className="input mt-1 w-full" type="number" min="0" step="0.01" value={minPrice} onChange={(event) => setMinPrice(event.target.value)} /></label>
+              <label className="text-xs text-text-muted">{t('wishlist.filterMaxPrice')}<input className="input mt-1 w-full" type="number" min="0" step="0.01" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} /></label>
+              <label className="flex min-h-10 items-center gap-2 text-sm text-text-secondary"><input type="checkbox" checked={hasAlert} onChange={(event) => setHasAlert(event.target.checked)} /> {t('wishlist.filterHasAlert')}</label>
+              <button type="button" className="btn-ghost" disabled={!filtersActive} onClick={clearFilters}>{t('wishlist.clearFilters')}</button>
+            </div>}
+            <p className="text-sm font-medium text-text-secondary">{t('wishlist.resultCount').replace('{shown}', visibleItems.length).replace('{total}', items.length)} · {t('wishlist.copyCount').replace('{count}', items.reduce((sum, item) => sum + (item.quantity || 1), 0))}</p>
           </section>
 
           {itemsQuery.isLoading ? (
@@ -378,27 +496,45 @@ export default function Wishlist() {
           ) : visibleItems.length === 0 ? (
             <div className="card py-16 text-center text-text-muted">{items.length ? t('wishlist.noMatchingCards') : t('wishlist.empty')}</div>
           ) : (
-            <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4' : 'space-y-3'}>
+            <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4' : 'overflow-hidden rounded-xl border border-border bg-bg-card'}>
+              {viewMode === 'list' && <div className="hidden grid-cols-[minmax(240px,2fr)_minmax(150px,1fr)_110px_130px_120px] gap-3 border-b border-border bg-bg-elevated/60 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-text-muted md:grid"><span>{t('wishlist.card')}</span><span>{t('wishlist.species')}</span><span>{t('wishlist.marketPrice')}</span><span>{t('wishlist.priceAlerts')}</span><span className="text-right">{t('wishlist.actions')}</span></div>}
               {visibleItems.map(item => {
                 const card = item.card || {}
                 const price = getEffectiveCardPrice(card, item.desired_variant === 'Any' ? null : item.desired_variant, pricePrimaryField)
                 const isEditing = editingItemId === item.id
+                const dexIds = normalizeDexIds(card.dex_ids)
+                const setTarget = card.set_ref?.id || card.set_id
+                const navigation = <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px]">
+                  {setTarget && <Link className="text-blue hover:underline" to={`/sets/${encodeURIComponent(setTarget)}`}>{card.set_ref?.name || card.set_name || card.set_id} #{card.number}</Link>}
+                  {dexIds.map(id => <Link key={id} className="text-pink-400 hover:underline" to={`/pokedex/${id}`}>#{String(id).padStart(3, '0')} {speciesById.get(id) || ''}</Link>)}
+                </div>
                 const metadata = <>
                   <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
                     {item.priority > 0 && <span className="rounded-full bg-gold/10 px-2 py-1 text-gold">{t('wishlist.priority')} {item.priority}/5</span>}
-                    <span className="rounded-full bg-bg-elevated px-2 py-1 text-text-secondary">{PURCHASE_RULES.find(([value]) => value === item.purchase_rule)?.[1] || item.purchase_rule}</span>
-                    <span className="rounded-full bg-bg-elevated px-2 py-1 text-text-secondary">{item.desired_variant} · {item.desired_condition}</span>
+                    <VariantPill variant={item.desired_variant} t={t} />
+                    <ConditionPill condition={item.desired_condition} t={t} />
+                    {(item.price_alert_above != null || item.price_alert_below != null) && <span className="rounded-full bg-brand-red/10 px-2 py-1 text-brand-red">{t('wishlist.priceAlerts')}</span>}
                   </div>
+                  <div className="mt-2 flex items-center justify-between gap-2"><QuickQuantity item={item} onChanged={refresh} t={t} /><span className="text-[11px] text-text-muted">{t('wishlist.requestedCopies').replace('{count}', item.quantity || 1)}</span></div>
                   <WishlistActions item={item} onEdit={() => setEditingItemId(isEditing ? null : item.id)} onRemove={() => window.confirm(t('wishlist.removeConfirm')) && deleteItemMutation.mutate(item.id)} onAddToCollection={() => collectionMutation.mutate(item)} t={t} />
                 </>
                 return viewMode === 'grid' ? (
                   <article key={item.id} className="card flex min-w-0 flex-col p-3">
                     <div className="aspect-[0.715] overflow-hidden rounded-lg bg-bg-elevated shadow-lg"><CardImage src={resolveCardImageUrl(card)} alt={card.name} className="h-full w-full object-cover" /></div>
-                    <div className="mt-3 min-w-0"><h3 className="truncate font-bold text-text-primary">{card.name}</h3><p className="truncate text-xs text-text-muted">{card.set_ref?.name || card.set_id} · #{card.number}</p><div className="mt-2 flex items-center justify-between"><span className="font-bold text-gold">{price == null ? '—' : formatPrice(price)}</span><span className="text-xs text-text-muted">×{item.quantity}</span></div>{metadata}</div>
-                    {isEditing && <ItemEditor item={item} lists={lists} onClose={() => setEditingItemId(null)} />}
+                    <div className="mt-3 min-w-0"><h3 className="truncate font-bold text-text-primary">{card.name}</h3>{navigation}<p className="mt-1 truncate text-xs text-text-muted">{tcgdexLanguageLabel(card.lang)}</p><FallbackBadges card={card} compact className="mt-1" /><div className="mt-2 flex items-center justify-between"><span className="font-bold text-gold">{price == null ? '—' : formatPrice(price)}</span><span className="text-xs text-text-muted">×{item.quantity}</span></div>{metadata}</div>
+                    {isEditing && <ItemEditor item={item} lists={lists} onClose={() => setEditingItemId(null)} t={t} />}
                   </article>
                 ) : (
-                  <article key={item.id} className="card"><div className="flex gap-3"><div className="h-32 w-24 shrink-0 overflow-hidden rounded-lg bg-bg-elevated"><CardImage src={resolveCardImageUrl(card)} alt={card.name} className="h-full w-full object-cover" /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-bold text-text-primary">{card.name}</h3><p className="text-xs text-text-muted">{card.set_ref?.name || card.set_id} · #{card.number} · {card.lang?.toUpperCase()}</p></div><div className="text-right"><p className="font-bold text-gold">{price == null ? '—' : formatPrice(price)}</p><p className="text-xs text-text-muted">×{item.quantity}</p></div></div>{metadata}</div></div>{isEditing && <ItemEditor item={item} lists={lists} onClose={() => setEditingItemId(null)} />}</article>
+                  <article key={item.id} className="border-b border-border last:border-b-0">
+                    <div className="grid items-center gap-2 px-3 py-2 md:grid-cols-[minmax(240px,2fr)_minmax(150px,1fr)_110px_130px_120px] md:gap-3">
+                      <div className="flex min-w-0 items-center gap-2"><div className="h-12 w-9 shrink-0 overflow-hidden rounded bg-bg-elevated"><CardImage src={resolveCardImageUrl(card)} alt={card.name} className="h-full w-full object-cover" /></div><div className="min-w-0"><h3 className="truncate text-sm font-bold text-text-primary">{card.name}</h3>{setTarget && <Link className="block truncate text-[11px] text-blue hover:underline" to={`/sets/${encodeURIComponent(setTarget)}`}>{card.set_ref?.name || card.set_name || card.set_id} · #{card.number}</Link>}<div className="mt-1 flex flex-wrap gap-1"><VariantPill variant={item.desired_variant} t={t} /><ConditionPill condition={item.desired_condition} t={t} /></div></div></div>
+                      <div className="flex flex-wrap gap-1">{dexIds.length ? dexIds.map(id => <Link key={id} className="rounded-full bg-pink-500/10 px-2 py-1 text-[10px] text-pink-400 hover:bg-pink-500/20" to={`/pokedex/${id}`}>#{String(id).padStart(3, '0')} {speciesById.get(id) || ''}</Link>) : <span className="text-xs text-text-muted">—</span>}</div>
+                      <div><p className="text-sm font-bold text-gold">{price == null ? '—' : formatPrice(price)}</p><QuickQuantity item={item} onChanged={refresh} t={t} /></div>
+                      <div className="text-[10px] text-text-secondary">{item.price_alert_above != null && <p>{t('wishlist.aboveLabel')} {formatPrice(item.price_alert_above)}</p>}{item.price_alert_below != null && <p>{t('wishlist.belowLabel')} {formatPrice(item.price_alert_below)}</p>}{item.price_alert_above == null && item.price_alert_below == null ? <span className="text-text-muted">{t('wishlist.noAlerts')}</span> : <p className="mt-0.5 text-text-muted">{t('wishlist.lastNotified')}: {item.notified_at ? new Date(item.notified_at).toLocaleDateString() : t('wishlist.never')}</p>}</div>
+                      <WishlistActions compact item={item} onEdit={() => setEditingItemId(isEditing ? null : item.id)} onRemove={() => window.confirm(t('wishlist.removeConfirm')) && deleteItemMutation.mutate(item.id)} onAddToCollection={() => collectionMutation.mutate(item)} t={t} />
+                    </div>
+                    {isEditing && <div className="px-3 pb-3"><ItemEditor item={item} lists={lists} onClose={() => setEditingItemId(null)} t={t} /></div>}
+                  </article>
                 )
               })}
             </div>

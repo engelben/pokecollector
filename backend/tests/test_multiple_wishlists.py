@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from api.wishlist import _cardmarket_url, _normalize_labels, _validate_purchase_rule
+from api.wishlist import _card_payload, _cardmarket_url, _normalize_labels, _validate_purchase_rule
 
 
 def card(**overrides):
@@ -48,3 +48,9 @@ def test_cardmarket_url_falls_back_to_constrained_search():
     assert source == "search_fallback"
     assert "/Pokemon/Products/Singles" in url
     assert "Pikachu" in url
+
+
+def test_wishlist_card_payload_includes_species_ids():
+    value = card(dex_ids=[25], set_ref=None)
+    payload = _card_payload(value)
+    assert payload["dex_ids"] == [25]

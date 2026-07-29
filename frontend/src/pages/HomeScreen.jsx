@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   RefreshCw, TrendingUp, TrendingDown, Layers, Star, Wallet, LogOut,
-  Search, Library, Grid2X2, BarChart3, Settings, Trophy, ArrowRightLeft, ListOrdered,
+  Search, Library, Grid2X2, BarChart3, Settings, Trophy, ArrowRightLeft, ListOrdered, Heart,
 } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -149,6 +149,7 @@ export default function HomeScreen() {
   // Portal navigation items — defined inside component so t() works
   const PORTAL_ITEMS = [
     { to: '/collection', icon: Library,    label: t('nav.collection'),  color: '#4fc3f7' },
+    { to: '/wishlist',   icon: Heart,      label: t('nav.wishlist'),    color: '#f06292' },
     { to: '/search',     icon: Search,     label: t('nav.cardSearch'),  color: '#ce93d8' },
     { to: '/sets',       icon: Grid2X2,    label: t('nav.sets'),        color: '#81c784' },
     { to: '/pokedex',    icon: ListOrdered, label: t('nav.pokedex'),    color: '#ffb74d' },
