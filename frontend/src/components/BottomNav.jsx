@@ -33,8 +33,8 @@ export default function BottomNav() {
 
   const moreNav = [
     { to: '/binders',    icon: BookOpen,   label: t('nav.binders') },
-    { to: '/wishlist',   icon: Heart,      label: t('nav.wishlist') },
     { to: '/pokedex',    icon: ListOrdered, label: t('nav.pokedex') },
+    { to: '/wishlist',   icon: Heart,      label: t('nav.wishlist') },
     { to: '/analytics',  icon: BarChart3,  label: t('nav.analytics') },
     { to: '/products',   icon: ShoppingBag, label: t('nav.products') },
     { to: '/trades',     icon: ArrowRightLeft, label: t('nav.trades') },
