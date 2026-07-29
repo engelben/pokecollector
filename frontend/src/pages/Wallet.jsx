@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarDays, Check, Coins, Gift, PiggyBank, Plus, RotateCcw, ShoppingBasket, WalletCards } from 'lucide-react'
 import {
-  addBudgetLedgerEntry, confirmBudgetPlan, createBudgetPlan, getBudgetLedger,
+  addBudgetLedgerEntry, confirmBudgetPlan, createBudgetPlan, getApiErrorMessage, getBudgetLedger,
   getBudgetPlans, getBudgetSuggestions, getBudgetSummary, getBudgetWishlistSources, getCard,
   returnBudgetPlan, submitBudgetPlan, upsertBudgetAccount,
 } from '../api/client'
@@ -167,6 +167,7 @@ function PlanCard({ plan, currency, canManage, onChanged, onOpenCard }) {
       charge_shipping_to_wallet: chargeShipping,
     }),
     onSuccess: () => { toast.success('Purchase confirmed and added to the collection'); invalidateCardState(queryClient); onChanged() },
+    onError: (error) => toast.error(getApiErrorMessage(error, 'Could not confirm purchase')),
   })
   return (
     <article className="card space-y-3">
@@ -192,7 +193,7 @@ function PlanCard({ plan, currency, canManage, onChanged, onOpenCard }) {
             <input className="input mt-1 w-24 py-1.5" type="number" min="0" step="0.01" value={shipping} onChange={(event) => setShipping(event.target.value)} />
           </label>
           <label className="mb-2 flex items-center gap-2 text-xs text-text-secondary"><input type="checkbox" checked={chargeShipping} onChange={(event) => setChargeShipping(event.target.checked)} /> Charge shipping to wallet</label>
-          {plan.status === 'pending_approval' && <button type="button" className="btn-ghost" onClick={() => returnMutation.mutate()} disabled={returnMutation.isPending}><RotateCcw size={15} /> Return for edits</button>}
+          <button type="button" className="btn-ghost" onClick={() => returnMutation.mutate()} disabled={returnMutation.isPending}><RotateCcw size={15} /> Return for edits</button>
           <button type="button" className="btn-primary ml-auto" onClick={() => confirmMutation.mutate()} disabled={confirmMutation.isPending || returnMutation.isPending}><Check size={15} /> Confirm purchase</button>
         </div>
       )}

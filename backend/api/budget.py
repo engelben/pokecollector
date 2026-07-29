@@ -545,7 +545,7 @@ def submit_cart(user_id: int | None = Query(default=None), session: AuthSession 
     if not account: raise HTTPException(status_code=404, detail="Budget account not configured")
     cart = db.query(BudgetDraftCart).options(joinedload(BudgetDraftCart.items)).filter(BudgetDraftCart.account_id == account.id).first()
     if not cart or not cart.items: raise HTTPException(status_code=400, detail="Your cart is empty")
-    plan = BudgetPurchasePlan(account_id=account.id, created_by_user_id=session.current_user.id, estimated_card_total_cents=sum((i.estimated_unit_price_cents or 0) * i.quantity for i in cart.items))
+    plan = BudgetPurchasePlan(account_id=account.id, status="pending_approval", created_by_user_id=session.current_user.id, estimated_card_total_cents=sum((i.estimated_unit_price_cents or 0) * i.quantity for i in cart.items))
     db.add(plan); db.flush()
     for row in cart.items:
         db.add(BudgetPurchasePlanItem(purchase_plan_id=plan.id, card_id=row.card_id, quantity=row.quantity, estimated_unit_price_cents=row.estimated_unit_price_cents or 0, card_name_snapshot=row.card_name_snapshot or row.card_id, set_name_snapshot=row.set_name_snapshot, cardmarket_url_snapshot=row.cardmarket_url_snapshot))
@@ -684,9 +684,6 @@ def confirm_plan(plan_id: int, data: PurchasePlanConfirm, session: AuthSession =
         item.actual_unit_price_cents = price
         card_total += price * item.quantity
     debit = card_total + (data.shipping_cents if data.charge_shipping_to_wallet else 0)
-    balance = _balance(db, account.id)
-    if debit > balance:
-        raise HTTPException(status_code=400, detail="The confirmed purchase exceeds the available balance")
     _add_confirmed_plan_to_collection(db, account, plan)
     plan.status = "confirmed"
     plan.actual_card_total_cents = card_total
@@ -716,10 +713,10 @@ def return_plan_for_edits(plan_id: int, session: AuthSession = Depends(get_auth_
 
     plan = db.query(BudgetPurchasePlan).filter(
         BudgetPurchasePlan.id == plan_id,
-        BudgetPurchasePlan.status == "pending_approval",
+        BudgetPurchasePlan.status.in_(["draft", "pending_approval"]),
     ).with_for_update().first()
     if not plan:
-        raise HTTPException(status_code=404, detail="Pending purchase plan not found")
+        raise HTTPException(status_code=404, detail="Editable purchase plan not found")
     db.refresh(plan, attribute_names=["items"])
     account = db.query(BudgetAccount).filter(BudgetAccount.id == plan.account_id).first()
     _target_user(db, session, account.user_id, manage=True)

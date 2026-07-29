@@ -120,3 +120,25 @@ def test_draft_cart_models_keep_quantity_separate_from_ledger_plans():
     cart.items.append(item)
     assert cart.items[0].wishlist_item_id == 12
     assert cart.items[0].quantity == 3
+
+
+def test_submitting_a_cart_sends_it_directly_for_approval():
+    tree = ast.parse(Path(__file__).parents[1].joinpath("api", "budget.py").read_text())
+    submit_cart = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "submit_cart")
+    plan_call = next(
+        node for node in ast.walk(submit_cart)
+        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "BudgetPurchasePlan"
+    )
+    status = next(keyword.value for keyword in plan_call.keywords if keyword.arg == "status")
+    assert isinstance(status, ast.Constant)
+    assert status.value == "pending_approval"
+
+
+def test_confirmation_does_not_reject_a_manager_approved_overage():
+    tree = ast.parse(Path(__file__).parents[1].joinpath("api", "budget.py").read_text())
+    confirm = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "confirm_plan")
+    messages = {
+        node.value for node in ast.walk(confirm)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+    assert "The confirmed purchase exceeds the available balance" not in messages
