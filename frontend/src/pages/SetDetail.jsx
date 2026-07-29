@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Plus, Trash2, X, Heart, BookMarked, HelpCircle } from 'lucide-react'
-import { getSetChecklist, addToCollection, addToWishlist, updateCollectionItem, removeFromCollection, getBinders, addOwnedSetToBinder, addOwnedSetToAutoBinder } from '../api/client'
+import { getSetChecklist, addToCollection, updateCollectionItem, removeFromCollection, getBinders, addOwnedSetToBinder, addOwnedSetToAutoBinder } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
@@ -18,6 +18,7 @@ import MoneyInput from '../components/MoneyInput'
 import { parseMoneyInputValue } from '../utils/moneyInput'
 import { getCardVariantEffectClass } from '../utils/cardVariantEffect'
 import { useDetailBackNavigation, useScrollToTopOnPush } from '../hooks/useListScrollRestoration'
+import WishlistAddButton from '../components/WishlistAddButton'
 
 const CONDITIONS = ['Mint', 'NM', 'LP', 'MP', 'HP']
 
@@ -132,7 +133,7 @@ function OwnedVersionRow({ item, onQuantityChange, onRemove, isUpdating, isRemov
   )
 }
 
-function SetCardActionModal({ card, setLang, onClose, onAdd, onAddWishlist, onQuantityChange, onRemove, isAdding, isAddingWishlist, isUpdatingQuantity, isRemoving, t }) {
+function SetCardActionModal({ card, setLang, onClose, onAdd, onQuantityChange, onRemove, isAdding, isUpdatingQuantity, isRemoving, t }) {
   const { exchangeRate, exchangeRateReady } = useSettings()
   const [addQuantity, setAddQuantity] = useState(1)
   const [addCondition, setAddCondition] = useState('NM')
@@ -240,17 +241,15 @@ function SetCardActionModal({ card, setLang, onClose, onAdd, onAddWishlist, onQu
                 <button type="submit" disabled={isAdding || !exchangeRateReady} className="btn-primary justify-center">
                   <Plus size={14} /> {isAdding ? t('card.adding') : t('collection.addVersionToCollection')}
                 </button>
-                <button
-                  type="button"
-                  disabled={isAddingWishlist}
+                <WishlistAddButton
+                  card={card}
+                  quantity={addQuantity}
+                  variant={addVariant}
+                  condition={addCondition}
                   className="btn-ghost justify-center"
-                  onClick={() => onAddWishlist({
-                    card,
-                    quantity: Math.max(1, Math.min(99, parseInt(addQuantity, 10) || 1)),
-                  })}
-                >
-                  <Heart size={14} /> {t('binderTypes.addToWishlist')}
-                </button>
+                  iconSize={18}
+                  onAdded={onClose}
+                > {t('binderTypes.addToWishlist')}</WishlistAddButton>
               </div>
             </form>
 
@@ -316,20 +315,6 @@ export default function SetDetail() {
       setSelectedCard(null)
     },
     onError: () => toast.error(t('card.addFailed')),
-  })
-
-  const wishlistMutation = useMutation({
-    mutationFn: ({ card, quantity = 1 }) => addToWishlist({
-      card_id: card.id,
-      quantity,
-    }),
-    onSuccess: () => {
-      toast.success(t('card.addedToWishlist'))
-      invalidateCardState(queryClient, { setId })
-      invalidateTcgdexFilterLanguages(queryClient)
-      setSelectedCard(null)
-    },
-    onError: () => toast.error(t('card.wishlistFailed')),
   })
 
   const removeMutation = useMutation({
@@ -614,11 +599,9 @@ export default function SetDetail() {
         setLang={setLang}
         onClose={() => setSelectedCard(null)}
         onAdd={(payload) => addMutation.mutate(payload)}
-        onAddWishlist={(payload) => wishlistMutation.mutate(payload)}
         onQuantityChange={(item, quantity) => quantityMutation.mutate({ item, quantity })}
         onRemove={(item) => removeMutation.mutate(item)}
         isAdding={addMutation.isPending}
-        isAddingWishlist={wishlistMutation.isPending}
         isUpdatingQuantity={quantityMutation.isPending}
         isRemoving={removeMutation.isPending}
         t={t}
