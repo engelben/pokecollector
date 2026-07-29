@@ -20,6 +20,7 @@ import { tcgdexLanguageLabel } from '../utils/tcgdexLanguages'
 import { invalidateCardState, invalidateTcgdexFilterLanguages } from '../utils/queryInvalidation'
 import { resolveCardImageUrl } from '../utils/imageUrl'
 import { normalizeSearchText } from '../utils/textSearch'
+import { searchableCardName } from '../utils/cardDisplayName'
 import toast from 'react-hot-toast'
 
 const PURCHASE_RULES = [
@@ -497,7 +498,7 @@ export default function Wishlist() {
             <div className="card py-16 text-center text-text-muted">{items.length ? t('wishlist.noMatchingCards') : t('wishlist.empty')}</div>
           ) : (
             <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4' : 'overflow-visible rounded-xl border border-border bg-bg-card'}>
-              {viewMode === 'list' && <div className="hidden grid-cols-[minmax(190px,2fr)_minmax(120px,1fr)_110px_100px_112px_100px_110px_184px] gap-3 border-b border-border bg-bg-elevated/60 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-text-muted lg:grid"><span>{t('wishlist.card')}</span><span>{t('wishlist.filterSet')}</span><span>{t('wishlist.desiredVariant')}</span><span>{t('wishlist.desiredCondition')}</span><span>{t('common.quantity')}</span><span>{t('wishlist.marketPrice')}</span><span>{t('wishlist.priceAlerts')}</span><span className="text-right">{t('wishlist.actions')}</span></div>}
+              {viewMode === 'list' && <div className="hidden grid-cols-[minmax(170px,2fr)_minmax(90px,1fr)_minmax(90px,1fr)_100px_90px_112px_90px_100px_176px] gap-2 border-b border-border bg-bg-elevated/60 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-text-muted lg:grid"><span>{t('wishlist.card')}</span><span>{t('wishlist.filterSet')}</span><span>{t('wishlist.species')}</span><span>{t('wishlist.desiredVariant')}</span><span>{t('wishlist.desiredCondition')}</span><span>{t('common.quantity')}</span><span>{t('wishlist.marketPrice')}</span><span>{t('wishlist.priceAlerts')}</span><span className="text-right">{t('wishlist.actions')}</span></div>}
               {visibleItems.map(item => {
                 const card = item.card || {}
                 const price = getEffectiveCardPrice(card, item.desired_variant === 'Any' ? null : item.desired_variant, pricePrimaryField)
@@ -521,12 +522,12 @@ export default function Wishlist() {
                 return viewMode === 'grid' ? (
                   <article key={item.id} className="card flex min-w-0 flex-col p-3">
                     <div className="aspect-[0.715] overflow-hidden rounded-lg bg-bg-elevated shadow-lg"><CardImage src={resolveCardImageUrl(card)} alt={card.name} className="h-full w-full object-cover" /></div>
-                    <div className="mt-3 min-w-0"><h3 className="truncate font-bold text-text-primary">{card.name}</h3>{navigation}<p className="mt-1 truncate text-xs text-text-muted">{tcgdexLanguageLabel(card.lang)}</p><FallbackBadges card={card} compact className="mt-1" /><div className="mt-2 flex items-center justify-between"><span className="font-bold text-gold">{price == null ? '—' : formatPrice(price)}</span><span className="text-xs text-text-muted">×{item.quantity}</span></div>{metadata}</div>
+                    <div className="mt-3 min-w-0"><h3 className="truncate font-bold text-text-primary" title={searchableCardName(card)}>{searchableCardName(card)}</h3>{navigation}<p className="mt-1 truncate text-xs text-text-muted">{tcgdexLanguageLabel(card.lang)}</p><FallbackBadges card={card} compact className="mt-1" /><div className="mt-2 flex items-center justify-between"><span className="font-bold text-gold">{price == null ? '—' : formatPrice(price)}</span><span className="text-xs text-text-muted">×{item.quantity}</span></div>{metadata}</div>
                     {isEditing && <ItemEditor item={item} lists={lists} onClose={() => setEditingItemId(null)} t={t} />}
                   </article>
                 ) : (
                   <article key={item.id} className="relative border-b border-border last:border-b-0 hover:z-20">
-                    <div className="grid items-center gap-2 px-3 py-2 lg:grid-cols-[minmax(190px,2fr)_minmax(120px,1fr)_110px_100px_112px_100px_110px_184px] lg:gap-3">
+                    <div className="grid items-center gap-2 px-3 py-2 lg:grid-cols-[minmax(170px,2fr)_minmax(90px,1fr)_minmax(90px,1fr)_100px_90px_112px_90px_100px_176px]">
                       <div className="flex min-w-0 items-center gap-2">
                         <div className="group relative h-14 w-10 shrink-0 overflow-visible rounded bg-bg-elevated">
                           <CardImage src={resolveCardImageUrl(card)} alt={card.name} className="h-full w-full rounded object-cover" />
@@ -534,9 +535,10 @@ export default function Wishlist() {
                             <CardImage src={resolveCardImageUrl(card, 'large')} alt={card.name} className="h-auto w-full rounded-lg object-cover" loading="eager" />
                           </div>
                         </div>
-                        <div className="min-w-0"><h3 className="truncate text-sm font-bold text-text-primary">{card.name}</h3><div className="mt-1 flex flex-wrap gap-1">{dexIds.map(id => <Link key={id} className="text-[10px] text-pink-400 hover:underline" to={`/pokedex/${id}`}>#{String(id).padStart(3, '0')} {speciesById.get(id) || ''}</Link>)}</div></div>
+                        <div className="min-w-0"><h3 className="truncate text-sm font-bold text-text-primary" title={searchableCardName(card)}>{searchableCardName(card)}</h3></div>
                       </div>
                       <div className="min-w-0">{setTarget ? <Link className="block truncate text-xs text-blue hover:underline" to={`/sets/${encodeURIComponent(setTarget)}`}>{card.set_ref?.name || card.set_name || card.set_id}<span className="block text-[10px] text-text-muted">#{card.number}</span></Link> : <span className="text-xs text-text-muted">—</span>}</div>
+                      <div className="flex flex-wrap gap-1">{dexIds.length ? dexIds.map(id => <Link key={id} className="rounded-full bg-pink-500/10 px-2 py-1 text-[10px] text-pink-400 hover:bg-pink-500/20" to={`/pokedex/${id}`}>#{String(id).padStart(3, '0')} {speciesById.get(id) || ''}</Link>) : <span className="text-xs text-text-muted">—</span>}</div>
                       <div><VariantPill variant={item.desired_variant} t={t} /></div>
                       <div><ConditionPill condition={item.desired_condition} t={t} /></div>
                       <div><QuickQuantity item={item} onChanged={refresh} t={t} /></div>
