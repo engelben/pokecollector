@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, Check, Coins, Gift, PiggyBank, Plus, ShoppingBasket, WalletCards } from 'lucide-react'
+import { CalendarDays, Check, Coins, Gift, PiggyBank, Plus, RotateCcw, ShoppingBasket, WalletCards } from 'lucide-react'
 import {
-  addBudgetLedgerEntry, confirmBudgetPlan, createBudgetPlan, getBudgetLedger,
-  getBudgetPlans, getBudgetSuggestions, getBudgetSummary, getBudgetWishlistSources,
-  submitBudgetPlan, upsertBudgetAccount,
+  addBudgetLedgerEntry, confirmBudgetPlan, createBudgetPlan, getApiErrorMessage, getBudgetLedger,
+  getBudgetPlans, getBudgetSuggestions, getBudgetSummary, getBudgetWishlistSources, getCard,
+  returnBudgetPlan, submitBudgetPlan, upsertBudgetAccount,
 } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { useSettings } from '../contexts/SettingsContext'
 import PokeBallLoader from '../components/PokeBallLoader'
 import toast from 'react-hot-toast'
+import CardImage from '../components/CardImage'
+import { CardModal } from '../components/CardItem'
+import { resolveCardImageUrl } from '../utils/imageUrl'
+import { invalidateCardState } from '../utils/queryInvalidation'
 
 const BUCKETS = [
   ['affordable_now', 'Affordable now'],
@@ -130,18 +134,40 @@ function AdjustmentForm({ userId, onSaved }) {
   )
 }
 
-function PlanCard({ plan, currency, canManage, onChanged }) {
+function CardSummary({ item, onOpen, children }) {
+  const name = item.name || item.card_name_snapshot
+  const setName = item.set_name || item.set_name_snapshot
+  return <div className="flex min-w-0 flex-1 items-center gap-3">
+    <button type="button" onClick={() => onOpen(item.card_id)} className="h-[68px] w-12 shrink-0 overflow-hidden rounded-lg bg-bg-elevated shadow-lg ring-1 ring-white/5 transition hover:ring-brand-red/50" aria-label={`View ${name} details`}>
+      <CardImage src={resolveCardImageUrl({ card_id: item.card_id, image: item.image })} alt={name} className="h-full w-full object-cover" />
+    </button>
+    <button type="button" onClick={() => onOpen(item.card_id)} className="min-w-0 flex-1 text-left group">
+      <span className="block truncate text-sm font-medium text-text-primary group-hover:text-brand-red">{name}</span>
+      <span className="block truncate text-xs text-text-muted">{setName}{item.number ? ` · #${item.number}` : ''}</span>
+    </button>
+    {children}
+  </div>
+}
+
+function PlanCard({ plan, currency, canManage, onChanged, onOpenCard }) {
+  const queryClient = useQueryClient()
   const [shipping, setShipping] = useState('0.00')
   const [chargeShipping, setChargeShipping] = useState(false)
   const [prices, setPrices] = useState(() => Object.fromEntries(plan.items.map(item => [item.id, ((item.actual_unit_price_cents ?? item.estimated_unit_price_cents ?? 0) / 100).toFixed(2)])))
   const submitMutation = useMutation({ mutationFn: () => submitBudgetPlan(plan.id, {}), onSuccess: onChanged })
+  const returnMutation = useMutation({
+    mutationFn: () => returnBudgetPlan(plan.id),
+    onSuccess: () => { toast.success('Basket returned to the applicant for edits'); onChanged() },
+    onError: (error) => toast.error(error?.response?.data?.detail || 'Could not return basket'),
+  })
   const confirmMutation = useMutation({
     mutationFn: () => confirmBudgetPlan(plan.id, {
       items: plan.items.map(item => ({ item_id: item.id, actual_unit_price_cents: Math.round(Number(prices[item.id] || 0) * 100) })),
       shipping_cents: Math.round(Number(shipping || 0) * 100),
       charge_shipping_to_wallet: chargeShipping,
     }),
-    onSuccess: () => { toast.success('Purchase confirmed'); onChanged() },
+    onSuccess: () => { toast.success('Purchase confirmed and added to the collection'); invalidateCardState(queryClient); onChanged() },
+    onError: (error) => toast.error(getApiErrorMessage(error, 'Could not confirm purchase')),
   })
   return (
     <article className="card space-y-3">
@@ -151,11 +177,12 @@ function PlanCard({ plan, currency, canManage, onChanged }) {
       </div>
       <div className="space-y-2">
         {plan.items.map(item => (
-          <div key={item.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-bg-elevated/50 p-2">
-            <span className="min-w-0 flex-1 text-sm text-text-primary">{item.card_name_snapshot} <span className="text-text-muted">· {item.set_name_snapshot}</span></span>
+          <div key={item.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-bg-elevated/50 p-2">
+            <CardSummary item={item} onOpen={onOpenCard}>
             {canManage && ['draft', 'pending_approval'].includes(plan.status) ? (
-              <input className="input w-24 py-1.5" type="number" step="0.01" min="0" value={prices[item.id]} onChange={(event) => setPrices(current => ({ ...current, [item.id]: event.target.value }))} />
+              <input aria-label={`Price for ${item.card_name_snapshot}`} className="input w-24 py-1.5" type="number" step="0.01" min="0" value={prices[item.id]} onChange={(event) => setPrices(current => ({ ...current, [item.id]: event.target.value }))} />
             ) : <span className="text-sm text-gold">{money(item.actual_unit_price_cents ?? item.estimated_unit_price_cents, currency)}</span>}
+            </CardSummary>
           </div>
         ))}
       </div>
@@ -166,7 +193,8 @@ function PlanCard({ plan, currency, canManage, onChanged }) {
             <input className="input mt-1 w-24 py-1.5" type="number" min="0" step="0.01" value={shipping} onChange={(event) => setShipping(event.target.value)} />
           </label>
           <label className="mb-2 flex items-center gap-2 text-xs text-text-secondary"><input type="checkbox" checked={chargeShipping} onChange={(event) => setChargeShipping(event.target.checked)} /> Charge shipping to wallet</label>
-          <button type="button" className="btn-primary ml-auto" onClick={() => confirmMutation.mutate()} disabled={confirmMutation.isPending}><Check size={15} /> Confirm purchase</button>
+          <button type="button" className="btn-ghost" onClick={() => returnMutation.mutate()} disabled={returnMutation.isPending}><RotateCcw size={15} /> Return for edits</button>
+          <button type="button" className="btn-primary ml-auto" onClick={() => confirmMutation.mutate()} disabled={confirmMutation.isPending || returnMutation.isPending}><Check size={15} /> Confirm purchase</button>
         </div>
       )}
     </article>
@@ -177,6 +205,7 @@ export default function Wallet() {
   const { user, profiles, actorUserId } = useAuth()
   const queryClient = useQueryClient()
   const [selected, setSelected] = useState([])
+  const [selectedCardId, setSelectedCardId] = useState(null)
   const canManage = !user?.managed_profile && user?.id === actorUserId
   const [targetUserId, setTargetUserId] = useState(user?.id || null)
   const queryUserId = canManage ? targetUserId : null
@@ -187,12 +216,14 @@ export default function Wallet() {
   const suggestionsQuery = useQuery({ queryKey: ['budget-suggestions', queryUserId], queryFn: () => getBudgetSuggestions(queryUserId), enabled })
   const plansQuery = useQuery({ queryKey: ['budget-plans', queryUserId], queryFn: () => getBudgetPlans(queryUserId), enabled })
   const wishlistSourcesQuery = useQuery({ queryKey: ['budget-wishlist-sources', queryUserId], queryFn: () => getBudgetWishlistSources(queryUserId), enabled: Boolean(canManage && queryUserId) })
+  const selectedCardQuery = useQuery({ queryKey: ['card', selectedCardId], queryFn: () => getCard(selectedCardId).then(response => response.data), enabled: Boolean(selectedCardId) })
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['budget-summary'] })
     queryClient.invalidateQueries({ queryKey: ['budget-ledger'] })
     queryClient.invalidateQueries({ queryKey: ['budget-suggestions'] })
     queryClient.invalidateQueries({ queryKey: ['budget-plans'] })
+    queryClient.invalidateQueries({ queryKey: ['budget-cart'] })
     queryClient.invalidateQueries({ queryKey: ['budget-wishlist-sources'] })
   }
 
@@ -250,18 +281,18 @@ export default function Wallet() {
           if (!rows.length) return null
           return <div key={bucket} className="card space-y-2"><h3 className="font-semibold text-text-secondary">{label}</h3>{rows.map(item => {
             const selectable = ['affordable_now', 'almost_affordable', 'parent_approval'].includes(item.bucket)
-            return <label key={item.wishlist_item_id} className="flex items-center gap-3 rounded-lg border border-border bg-bg-card p-2">
+            return <div key={item.wishlist_item_id} className="flex items-center gap-3 rounded-lg border border-border bg-bg-card p-2">
               <input type="checkbox" disabled={!selectable} checked={selected.includes(item.wishlist_item_id)} onChange={(event) => setSelected(current => event.target.checked ? [...current, item.wishlist_item_id] : current.filter(id => id !== item.wishlist_item_id))} />
-              <span className="min-w-0 flex-1"><span className="block truncate font-medium text-text-primary">{item.name}</span><span className="text-xs text-text-muted">{item.set_name} · #{item.number}</span></span>
-              <span className="text-right"><span className="block font-bold text-gold">{item.price_cents == null ? '—' : money(item.price_cents, currency)}</span>{item.shortfall_cents > 0 && <span className="text-xs text-text-muted">save {money(item.shortfall_cents, currency)}</span>}</span>
-            </label>
+              <CardSummary item={item} onOpen={setSelectedCardId}><span className="text-right"><span className="block font-bold text-gold">{item.price_cents == null ? '—' : money(item.price_cents, currency)}</span>{item.shortfall_cents > 0 && <span className="text-xs text-text-muted">save {money(item.shortfall_cents, currency)}</span>}</span></CardSummary>
+            </div>
           })}</div>
         })}
       </section>
 
-      <section className="space-y-3"><h2 className="text-lg font-bold text-text-primary">Purchase baskets</h2>{(plansQuery.data || []).length ? (plansQuery.data || []).map(plan => <PlanCard key={plan.id} plan={plan} currency={currency} canManage={canManage} onChanged={refresh} />) : <div className="card text-text-muted">No baskets yet.</div>}</section>
+      <section className="space-y-3"><h2 className="text-lg font-bold text-text-primary">Purchase baskets</h2>{(plansQuery.data || []).length ? (plansQuery.data || []).map(plan => <PlanCard key={plan.id} plan={plan} currency={currency} canManage={canManage} onChanged={refresh} onOpenCard={setSelectedCardId} />) : <div className="card text-text-muted">No baskets yet.</div>}</section>
 
       <section className="space-y-3"><h2 className="text-lg font-bold text-text-primary">Transaction history</h2><div className="card divide-y divide-border">{(ledgerQuery.data || []).map(row => <div key={row.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"><span className={`font-bold ${row.amount_cents >= 0 ? 'text-green' : 'text-brand-red'}`}>{row.amount_cents >= 0 ? '+' : ''}{money(row.amount_cents, currency)}</span><span className="min-w-0 flex-1"><span className="block text-sm text-text-primary">{row.entry_type.replaceAll('_', ' ')}</span><span className="text-xs text-text-muted">{row.note || row.effective_date}</span></span><span className="text-xs text-text-muted">{row.effective_date}</span></div>)}</div></section>
+      {selectedCardQuery.data && <CardModal card={selectedCardQuery.data} onClose={() => setSelectedCardId(null)} />}
     </div>
   )
 }

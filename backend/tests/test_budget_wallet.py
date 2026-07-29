@@ -2,8 +2,9 @@ from datetime import date
 import ast
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
-from api.budget import _price_cents, _purchase_rule_bucket
+from api.budget import _add_confirmed_plan_to_collection, _default_collection_variant, _price_cents, _purchase_rule_bucket
 from models import BudgetDraftCart, BudgetDraftCartItem
 
 
@@ -31,6 +32,53 @@ def test_price_cents_uses_trend_first():
 def test_price_cents_returns_none_without_prices():
     card = SimpleNamespace(price_trend=None, price_market=None, price_low=None, price_avg7=None, price_avg30=None)
     assert _price_cents(card) is None
+
+
+def test_confirmed_collection_variant_prefers_a_real_available_print():
+    reverse_only = SimpleNamespace(
+        variants_normal=False,
+        variants_reverse=True,
+        variants_holo=True,
+        variants_first_edition=False,
+    )
+    assert _default_collection_variant(reverse_only) == "Reverse Holo"
+
+
+def test_confirmed_collection_variant_defaults_to_normal_for_legacy_cards():
+    legacy = SimpleNamespace(
+        variants_normal=None,
+        variants_reverse=None,
+        variants_holo=None,
+        variants_first_edition=None,
+    )
+    assert _default_collection_variant(legacy) == "Normal"
+
+
+def test_confirmed_purchase_adds_quantity_and_actual_unit_price_to_collection():
+    card = SimpleNamespace(
+        id="sv1-1_en", lang="en", variants_normal=True, variants_reverse=False,
+        variants_holo=False, variants_first_edition=False,
+    )
+    plan_item = SimpleNamespace(card_id=card.id, quantity=2, actual_unit_price_cents=345)
+    db = MagicMock()
+    card_query, collection_query = MagicMock(), MagicMock()
+    db.query.side_effect = [card_query, collection_query]
+    card_query.filter.return_value.all.return_value = [card]
+    collection_query.filter.return_value.first.return_value = None
+
+    _add_confirmed_plan_to_collection(
+        db,
+        SimpleNamespace(user_id=7),
+        SimpleNamespace(items=[plan_item]),
+    )
+
+    added = db.add.call_args.args[0]
+    assert added.user_id == 7
+    assert added.card_id == card.id
+    assert added.quantity == 2
+    assert added.condition == "NM"
+    assert added.variant == "Normal"
+    assert added.purchase_price == 3.45
 
 
 def test_open_or_trade_rule_is_never_purchasable():
@@ -72,3 +120,40 @@ def test_draft_cart_models_keep_quantity_separate_from_ledger_plans():
     cart.items.append(item)
     assert cart.items[0].wishlist_item_id == 12
     assert cart.items[0].quantity == 3
+
+
+def test_submitting_a_cart_sends_it_directly_for_approval():
+    tree = ast.parse(Path(__file__).parents[1].joinpath("api", "budget.py").read_text())
+    submit_cart = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "submit_cart")
+    plan_call = next(
+        node for node in ast.walk(submit_cart)
+        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "BudgetPurchasePlan"
+    )
+    status = next(keyword.value for keyword in plan_call.keywords if keyword.arg == "status")
+    assert isinstance(status, ast.Constant)
+    assert status.value == "pending_approval"
+
+
+def test_confirmation_does_not_reject_a_manager_approved_overage():
+    tree = ast.parse(Path(__file__).parents[1].joinpath("api", "budget.py").read_text())
+    confirm = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "confirm_plan")
+    messages = {
+        node.value for node in ast.walk(confirm)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+    assert "The confirmed purchase exceeds the available balance" not in messages
+
+
+def test_returning_a_plan_deletes_the_approval_snapshot_after_restoring_the_cart():
+    tree = ast.parse(Path(__file__).parents[1].joinpath("api", "budget.py").read_text())
+    return_plan = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "return_plan_for_edits")
+    delete_calls = [
+        node for node in ast.walk(return_plan)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "delete"
+        and len(node.args) == 1
+        and isinstance(node.args[0], ast.Name)
+        and node.args[0].id == "plan"
+    ]
+    assert len(delete_calls) == 1
