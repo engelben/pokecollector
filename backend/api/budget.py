@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import inspect, text
+from sqlalchemy import and_, inspect, not_, text
 from sqlalchemy.orm import Session, joinedload
 
 from api.auth import AuthSession, get_auth_session
@@ -614,11 +614,16 @@ def list_plans(user_id: int | None = Query(default=None), session: AuthSession =
     if not account:
         return []
     plans = db.query(BudgetPurchasePlan).options(joinedload(BudgetPurchasePlan.items)).filter(
-        BudgetPurchasePlan.account_id == account.id
+        BudgetPurchasePlan.account_id == account.id,
+        not_(and_(
+            BudgetPurchasePlan.status == "cancelled",
+            BudgetPurchasePlan.note.isnot(None),
+            BudgetPurchasePlan.note.startswith(RETURNED_FOR_EDITS_NOTE),
+        )),
     ).order_by(BudgetPurchasePlan.created_at.desc(), BudgetPurchasePlan.id.desc()).limit(50).all()
     return [{
         "id": plan.id,
-        "status": "returned_for_edits" if plan.status == "cancelled" and (plan.note or "").startswith(RETURNED_FOR_EDITS_NOTE) else plan.status,
+        "status": plan.status,
         "estimated_card_total_cents": plan.estimated_card_total_cents,
         "actual_card_total_cents": plan.actual_card_total_cents,
         "shipping_cents": plan.shipping_cents,
@@ -756,12 +761,11 @@ def return_plan_for_edits(plan_id: int, session: AuthSession = Depends(get_auth_
             estimated_unit_price_cents=item.estimated_unit_price_cents,
             cardmarket_url_snapshot=item.cardmarket_url_snapshot,
         ))
-    plan.status = "cancelled"
-    plan.cancelled_at = datetime.utcnow()
-    plan.note = f"{RETURNED_FOR_EDITS_NOTE}\n{plan.note}" if plan.note else RETURNED_FOR_EDITS_NOTE
+    returned_plan_id = plan.id
+    db.delete(plan)
     cart.updated_at = datetime.utcnow()
     db.commit()
-    return {"id": plan.id, "status": "returned_for_edits", "cart": _cart_payload(db, account)}
+    return {"id": returned_plan_id, "status": "returned_for_edits", "cart": _cart_payload(db, account)}
 
 
 @router.post("/plans/{plan_id}/cancel")

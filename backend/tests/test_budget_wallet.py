@@ -142,3 +142,18 @@ def test_confirmation_does_not_reject_a_manager_approved_overage():
         if isinstance(node, ast.Constant) and isinstance(node.value, str)
     }
     assert "The confirmed purchase exceeds the available balance" not in messages
+
+
+def test_returning_a_plan_deletes_the_approval_snapshot_after_restoring_the_cart():
+    tree = ast.parse(Path(__file__).parents[1].joinpath("api", "budget.py").read_text())
+    return_plan = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "return_plan_for_edits")
+    delete_calls = [
+        node for node in ast.walk(return_plan)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "delete"
+        and len(node.args) == 1
+        and isinstance(node.args[0], ast.Name)
+        and node.args[0].id == "plan"
+    ]
+    assert len(delete_calls) == 1
