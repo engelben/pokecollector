@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import {
   Archive, ArrowDown, ArrowUp, BookOpen, Check, Copy, Download, Edit2, ExternalLink, Heart, Library,
-  Grid2X2, List, Minus, MoveRight, Plus, Save, Search, SlidersHorizontal, Trash2, X,
+  Circle, Grid2X2, List, Medal, Minus, MoveRight, Plus, Save, Search, SlidersHorizontal, Sparkles, SquareAsterisk, Trash2, X,
 } from 'lucide-react'
 import {
   addToCollection, createWishlist, deleteWishlist, exportWishlist,
@@ -28,6 +29,34 @@ const PURCHASE_RULES = [
   ['parent_approval_required', 'Parent approval required'],
 ]
 
+const CONDITION_META = {
+  Mint: ['MT', 'bg-cyan-500 text-white'],
+  NM: ['NM', 'bg-green-500 text-white'],
+  EX: ['EX', 'bg-lime-700 text-white'],
+  GD: ['GD', 'bg-amber-400 text-slate-950'],
+  LP: ['LP', 'bg-orange-400 text-white'],
+  MP: ['PL', 'bg-rose-400 text-white'],
+  HP: ['PO', 'bg-red-500 text-white'],
+}
+const VARIANT_META = {
+  Normal: [Circle, 'text-text-secondary'],
+  Holo: [Sparkles, 'text-purple-400'],
+  'Reverse Holo': [SquareAsterisk, 'text-blue'],
+  'First Edition': [Medal, 'text-gold'],
+}
+
+function ConditionPill({ condition, t }) {
+  if (!condition || condition === 'Any') return <span className="rounded-full bg-bg-elevated px-2 py-1 text-[10px] text-text-muted">{t('wishlist.anyCondition')}</span>
+  const [label, className] = CONDITION_META[condition] || [condition, 'bg-bg-elevated text-text-secondary']
+  return <span className={`inline-flex min-w-8 items-center justify-center rounded-full px-2 py-1 text-[10px] font-black ${className}`} title={condition}>{label}</span>
+}
+
+function VariantPill({ variant, t }) {
+  if (!variant || variant === 'Any') return <span className="rounded-full bg-bg-elevated px-2 py-1 text-[10px] text-text-muted">{t('wishlist.anyVariant')}</span>
+  const [Icon, color] = VARIANT_META[variant] || [Circle, 'text-text-secondary']
+  return <span className="inline-flex items-center gap-1 rounded-full bg-bg-elevated px-2 py-1 text-[10px] text-text-secondary"><Icon size={12} className={color} />{variant}</span>
+}
+
 function normalizeDexIds(value) {
   const rawValues = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[;,\s]+/) : [value]
   return [...new Set(rawValues.map(Number).filter(id => Number.isInteger(id) && id > 0))]
@@ -37,13 +66,12 @@ function isPokemonCard(card) {
   return String(card?.category || card?.supertype || '').toLowerCase() === 'pokemon'
 }
 
-function WishlistActions({ item, onEdit, onRemove, onAddToCollection, t }) {
+function WishlistActions({ item, onEdit, onRemove, onAddToCollection, t, compact = false }) {
   return (
-    <div className="mt-3 flex flex-wrap gap-2" data-cart-action-area="wishlist-card">
-      {/* BudgetCartButton is intentionally composed here after the wallet feature is integrated. */}
-      <button type="button" className="btn-ghost min-h-10 py-1.5" onClick={onEdit} aria-label={t('wishlist.editCard')}><Edit2 size={15} /> {t('common.edit')}</button>
-      {item.cardmarket_url && <a className="btn-ghost min-h-10 py-1.5" href={item.cardmarket_url} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Cardmarket</a>}
-      <button type="button" className="btn-ghost min-h-10 py-1.5" onClick={onAddToCollection}><Plus size={15} /> {t('wishlist.addToCollection')}</button>
+    <div className={`${compact ? 'flex justify-end gap-1' : 'mt-3 flex flex-wrap gap-2'}`} data-cart-action-area="wishlist-card">
+      <button type="button" className={`btn-ghost ${compact ? 'min-h-8 p-1.5' : 'min-h-10 py-1.5'}`} onClick={onEdit} aria-label={t('wishlist.editCard')}><Edit2 size={15} /> {!compact && t('common.edit')}</button>
+      {item.cardmarket_url && <a className={`btn-ghost ${compact ? 'min-h-8 p-1.5' : 'min-h-10 py-1.5'}`} href={item.cardmarket_url} target="_blank" rel="noreferrer" aria-label="Cardmarket"><ExternalLink size={15} /> {!compact && 'Cardmarket'}</a>}
+      <button type="button" className={`btn-ghost ${compact ? 'min-h-8 p-1.5' : 'min-h-10 py-1.5'}`} onClick={onAddToCollection} aria-label={t('wishlist.addToCollection')}><Plus size={15} /> {!compact && t('wishlist.addToCollection')}</button>
       <button type="button" className="btn-ghost min-h-10 py-1.5 text-brand-red" onClick={onRemove} aria-label={t('wishlist.removeCard')}><Trash2 size={15} /> <span className="sr-only">{t('wishlist.removeCard')}</span></button>
     </div>
   )
@@ -468,16 +496,23 @@ export default function Wishlist() {
           ) : visibleItems.length === 0 ? (
             <div className="card py-16 text-center text-text-muted">{items.length ? t('wishlist.noMatchingCards') : t('wishlist.empty')}</div>
           ) : (
-            <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4' : 'space-y-3'}>
+            <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4' : 'overflow-hidden rounded-xl border border-border bg-bg-card'}>
+              {viewMode === 'list' && <div className="hidden grid-cols-[minmax(240px,2fr)_minmax(150px,1fr)_110px_130px_120px] gap-3 border-b border-border bg-bg-elevated/60 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-text-muted md:grid"><span>{t('wishlist.card')}</span><span>{t('wishlist.species')}</span><span>{t('wishlist.marketPrice')}</span><span>{t('wishlist.priceAlerts')}</span><span className="text-right">{t('wishlist.actions')}</span></div>}
               {visibleItems.map(item => {
                 const card = item.card || {}
                 const price = getEffectiveCardPrice(card, item.desired_variant === 'Any' ? null : item.desired_variant, pricePrimaryField)
                 const isEditing = editingItemId === item.id
+                const dexIds = normalizeDexIds(card.dex_ids)
+                const setTarget = card.set_ref?.id || card.set_id
+                const navigation = <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px]">
+                  {setTarget && <Link className="text-blue hover:underline" to={`/sets/${encodeURIComponent(setTarget)}`}>{card.set_ref?.name || card.set_name || card.set_id} #{card.number}</Link>}
+                  {dexIds.map(id => <Link key={id} className="text-pink-400 hover:underline" to={`/pokedex/${id}`}>#{String(id).padStart(3, '0')} {speciesById.get(id) || ''}</Link>)}
+                </div>
                 const metadata = <>
                   <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
                     {item.priority > 0 && <span className="rounded-full bg-gold/10 px-2 py-1 text-gold">{t('wishlist.priority')} {item.priority}/5</span>}
-                    <span className="rounded-full bg-bg-elevated px-2 py-1 text-text-secondary">{PURCHASE_RULES.find(([value]) => value === item.purchase_rule)?.[1] || item.purchase_rule}</span>
-                    <span className="rounded-full bg-bg-elevated px-2 py-1 text-text-secondary">{item.desired_variant} · {item.desired_condition}</span>
+                    <VariantPill variant={item.desired_variant} t={t} />
+                    <ConditionPill condition={item.desired_condition} t={t} />
                     {(item.price_alert_above != null || item.price_alert_below != null) && <span className="rounded-full bg-brand-red/10 px-2 py-1 text-brand-red">{t('wishlist.priceAlerts')}</span>}
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-2"><QuickQuantity item={item} onChanged={refresh} t={t} /><span className="text-[11px] text-text-muted">{t('wishlist.requestedCopies').replace('{count}', item.quantity || 1)}</span></div>
@@ -486,11 +521,20 @@ export default function Wishlist() {
                 return viewMode === 'grid' ? (
                   <article key={item.id} className="card flex min-w-0 flex-col p-3">
                     <div className="aspect-[0.715] overflow-hidden rounded-lg bg-bg-elevated shadow-lg"><CardImage src={resolveCardImageUrl(card)} alt={card.name} className="h-full w-full object-cover" /></div>
-                    <div className="mt-3 min-w-0"><h3 className="truncate font-bold text-text-primary">{card.name}</h3><p className="truncate text-xs text-text-muted">{card.set_ref?.name || card.set_name || card.set_id} · #{card.number} · {tcgdexLanguageLabel(card.lang)}</p><FallbackBadges card={card} compact className="mt-1" /><div className="mt-2 flex items-center justify-between"><span className="font-bold text-gold">{price == null ? '—' : formatPrice(price)}</span><span className="text-xs text-text-muted">×{item.quantity}</span></div>{metadata}</div>
+                    <div className="mt-3 min-w-0"><h3 className="truncate font-bold text-text-primary">{card.name}</h3>{navigation}<p className="mt-1 truncate text-xs text-text-muted">{tcgdexLanguageLabel(card.lang)}</p><FallbackBadges card={card} compact className="mt-1" /><div className="mt-2 flex items-center justify-between"><span className="font-bold text-gold">{price == null ? '—' : formatPrice(price)}</span><span className="text-xs text-text-muted">×{item.quantity}</span></div>{metadata}</div>
                     {isEditing && <ItemEditor item={item} lists={lists} onClose={() => setEditingItemId(null)} t={t} />}
                   </article>
                 ) : (
-                  <article key={item.id} className="card"><div className="flex gap-3"><div className="h-32 w-24 shrink-0 overflow-hidden rounded-lg bg-bg-elevated"><CardImage src={resolveCardImageUrl(card)} alt={card.name} className="h-full w-full object-cover" /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-bold text-text-primary">{card.name}</h3><p className="text-xs text-text-muted">{card.set_ref?.name || card.set_name || card.set_id} · #{card.number} · {tcgdexLanguageLabel(card.lang)}</p><FallbackBadges card={card} compact className="mt-1" /></div><div className="text-right"><p className="font-bold text-gold">{price == null ? '—' : formatPrice(price)}</p><p className="text-xs text-text-muted">×{item.quantity}</p></div></div>{metadata}</div></div>{isEditing && <ItemEditor item={item} lists={lists} onClose={() => setEditingItemId(null)} t={t} />}</article>
+                  <article key={item.id} className="border-b border-border last:border-b-0">
+                    <div className="grid items-center gap-2 px-3 py-2 md:grid-cols-[minmax(240px,2fr)_minmax(150px,1fr)_110px_130px_120px] md:gap-3">
+                      <div className="flex min-w-0 items-center gap-2"><div className="h-12 w-9 shrink-0 overflow-hidden rounded bg-bg-elevated"><CardImage src={resolveCardImageUrl(card)} alt={card.name} className="h-full w-full object-cover" /></div><div className="min-w-0"><h3 className="truncate text-sm font-bold text-text-primary">{card.name}</h3>{setTarget && <Link className="block truncate text-[11px] text-blue hover:underline" to={`/sets/${encodeURIComponent(setTarget)}`}>{card.set_ref?.name || card.set_name || card.set_id} · #{card.number}</Link>}<div className="mt-1 flex flex-wrap gap-1"><VariantPill variant={item.desired_variant} t={t} /><ConditionPill condition={item.desired_condition} t={t} /></div></div></div>
+                      <div className="flex flex-wrap gap-1">{dexIds.length ? dexIds.map(id => <Link key={id} className="rounded-full bg-pink-500/10 px-2 py-1 text-[10px] text-pink-400 hover:bg-pink-500/20" to={`/pokedex/${id}`}>#{String(id).padStart(3, '0')} {speciesById.get(id) || ''}</Link>) : <span className="text-xs text-text-muted">—</span>}</div>
+                      <div><p className="text-sm font-bold text-gold">{price == null ? '—' : formatPrice(price)}</p><QuickQuantity item={item} onChanged={refresh} t={t} /></div>
+                      <div className="text-[10px] text-text-secondary">{item.price_alert_above != null && <p>{t('wishlist.aboveLabel')} {formatPrice(item.price_alert_above)}</p>}{item.price_alert_below != null && <p>{t('wishlist.belowLabel')} {formatPrice(item.price_alert_below)}</p>}{item.price_alert_above == null && item.price_alert_below == null ? <span className="text-text-muted">{t('wishlist.noAlerts')}</span> : <p className="mt-0.5 text-text-muted">{t('wishlist.lastNotified')}: {item.notified_at ? new Date(item.notified_at).toLocaleDateString() : t('wishlist.never')}</p>}</div>
+                      <WishlistActions compact item={item} onEdit={() => setEditingItemId(isEditing ? null : item.id)} onRemove={() => window.confirm(t('wishlist.removeConfirm')) && deleteItemMutation.mutate(item.id)} onAddToCollection={() => collectionMutation.mutate(item)} t={t} />
+                    </div>
+                    {isEditing && <div className="px-3 pb-3"><ItemEditor item={item} lists={lists} onClose={() => setEditingItemId(null)} t={t} /></div>}
+                  </article>
                 )
               })}
             </div>
