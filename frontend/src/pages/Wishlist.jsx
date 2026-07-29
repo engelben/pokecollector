@@ -4,6 +4,7 @@ import { Trash2, Edit2, Check, X, Heart, Filter, SortAsc, ChevronUp, ChevronDown
 import { getWishlist, removeFromWishlist, updateWishlistItem, addToCollection } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import CardListItem from '../components/CardListItem'
+import CardDetailModal from '../components/CardDetailModal'
 import TabNav from '../components/TabNav'
 import toast from 'react-hot-toast'
 import { resolveCardImageUrl } from '../utils/imageUrl'
@@ -68,6 +69,7 @@ function WishlistItemEditor({ item, onDone }) {
 export default function Wishlist() {
   const { t, formatPrice, pricePrimaryField } = useSettings()
   const [editingId, setEditingId] = useState(null)
+  const [selectedItem, setSelectedItem] = useState(null)
   const [sortBy, setSortBy] = useState('created_at')
   const [sortOrder, setSortOrder] = useState('desc')
   const [filterSet, setFilterSet] = useState('')
@@ -290,7 +292,7 @@ export default function Wishlist() {
                       return (
                         <tr key={item.id} className="border-b border-border/50 hover:bg-bg-elevated/50 transition-colors">
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
+                            <button type="button" onClick={() => setSelectedItem(item)} className="flex items-center gap-3 text-left">
                               <div className="w-8 h-10 flex-shrink-0 rounded overflow-hidden">
                                 {resolveCardImageUrl(card) ? (
                                   <img src={resolveCardImageUrl(card)} alt={card?.name} className="w-full h-full object-cover" />
@@ -303,7 +305,7 @@ export default function Wishlist() {
                                 <FallbackBadges card={card} compact />
                                 {card?.rarity && <p className="text-xs text-text-muted">{card.rarity}</p>}
                               </div>
-                            </div>
+                            </button>
                           </td>
                           <td className="px-4 py-3 text-center">
                             <div className="inline-flex items-center gap-1 rounded-full bg-bg-surface border border-border px-1.5 py-1">
@@ -408,6 +410,7 @@ export default function Wishlist() {
                       subtext={card?.set_ref?.name || '-'}
                       badges={badges}
                       value={price ? formatPrice(price) : '-'}
+                      onClick={() => setSelectedItem(item)}
                       rightAction={
                         <div className="flex flex-col gap-1">
                           <button onClick={(e) => { e.stopPropagation(); setEditingId(item.id) }}
@@ -433,6 +436,26 @@ export default function Wishlist() {
             </div>
           )}
         </>
+      )}
+      {selectedItem?.card && (
+        <CardDetailModal
+          card={selectedItem.card}
+          defaultLang={selectedItem.card.lang}
+          onClose={() => setSelectedItem(null)}
+          showWishlistAction={false}
+          actions={(
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t('wishlist.priceAlerts')}</p>
+              <WishlistItemEditor item={selectedItem} onDone={() => setSelectedItem(null)} />
+              <button type="button" className="btn-ghost w-full justify-center text-brand-red" onClick={() => {
+                removeMutation.mutate(selectedItem.id)
+                setSelectedItem(null)
+              }}>
+                <Trash2 size={14} /> {t('wishlist.remove')}
+              </button>
+            </div>
+          )}
+        />
       )}
     </div>
   )
