@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Trash2, Check, X, Filter, SortAsc, Download, Upload, ChevronUp, ChevronDown, Search, PenLine, Grid2X2, List, Library, BookOpen, Heart, Copy, ArrowLeft, Package } from 'lucide-react'
-import { getCollection, updateCollectionItem, updateCardCustomImage, removeFromCollection, importCollectionCsv, exportCSV, exportPDF, getSets, addToCollection, getBinders, addCollectionItemToBinder, getWishlist, getApiErrorMessage } from '../api/client'
+import { getCollection, updateCollectionItem, updateCardCustomImage, uploadCardCustomImage, removeFromCollection, importCollectionCsv, exportCSV, exportPDF, getSets, addToCollection, getBinders, addCollectionItemToBinder, getWishlist, getApiErrorMessage } from '../api/client'
 import { CustomCardModal } from '../components/CardItem'
 import { useSettings } from '../contexts/SettingsContext'
 import CardImage from '../components/CardImage'
@@ -292,7 +292,9 @@ function CollectionEditModal({ item, onClose }) {
   const [newVersionVariant, setNewVersionVariant] = useState(item.variant || 'Normal')
   const [newVersionLang, setNewVersionLang] = useState(item.lang || 'en')
   const [newVersionPrice, setNewVersionPrice] = useState('')
-  const [customImageUrl, setCustomImageUrl] = useState(card?.custom_image_url || '')
+  const [customImageUrl, setCustomImageUrl] = useState(
+    card?.custom_image_url?.startsWith('uploaded://') ? '' : (card?.custom_image_url || '')
+  )
   const [savedCustomImageUrl, setSavedCustomImageUrl] = useState(card?.custom_image_url || '')
   const [customImageVersion, setCustomImageVersion] = useState(0)
   const customImageInputId = useId()
@@ -327,7 +329,7 @@ function CollectionEditModal({ item, onClose }) {
       setVariant(nextItem.variant)
       setLang(nextItem.lang)
       setPrice(nextItem.price)
-      setCustomImageUrl(nextItem.customImageUrl)
+      setCustomImageUrl(nextItem.customImageUrl.startsWith('uploaded://') ? '' : nextItem.customImageUrl)
       setSavedCustomImageUrl(nextItem.customImageUrl)
     } else {
       if (quantity === prevItem.quantity && nextItem.quantity !== prevItem.quantity) {
@@ -346,7 +348,7 @@ function CollectionEditModal({ item, onClose }) {
         setPrice(nextItem.price)
       }
       if (customImageUrl === prevItem.customImageUrl && nextItem.customImageUrl !== prevItem.customImageUrl) {
-        setCustomImageUrl(nextItem.customImageUrl)
+        setCustomImageUrl(nextItem.customImageUrl.startsWith('uploaded://') ? '' : nextItem.customImageUrl)
         setSavedCustomImageUrl(nextItem.customImageUrl)
       }
     }
@@ -438,6 +440,17 @@ function CollectionEditModal({ item, onClose }) {
       const detail = err?.response?.data?.detail || t('common.error')
       toast.error(detail)
     },
+  })
+  const customImageUploadMutation = useMutation({
+    mutationFn: (file) => uploadCardCustomImage(item.card_id, file),
+    onSuccess: (updatedCard) => {
+      setCustomImageUrl('')
+      setSavedCustomImageUrl(updatedCard.custom_image_url || '')
+      setCustomImageVersion((version) => version + 1)
+      toast.success(t('card.customImageUploaded'))
+      invalidateCardState(queryClient)
+    },
+    onError: (err) => toast.error(err?.response?.data?.detail || t('common.error')),
   })
 
   const handleDelete = () => {
@@ -619,6 +632,20 @@ function CollectionEditModal({ item, onClose }) {
                     onChange={(e) => setCustomImageUrl(e.target.value)}
                     className="input w-full"
                   />
+                  <label className="btn-ghost text-sm inline-flex cursor-pointer">
+                    {customImageUploadMutation.isPending ? t('common.saving') : t('card.uploadCustomImage')}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="sr-only"
+                      disabled={customImageUploadMutation.isPending}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0]
+                        if (file) customImageUploadMutation.mutate(file)
+                        event.target.value = ''
+                      }}
+                    />
+                  </label>
                   {customImageProxyUrl && (
                     <div className="w-20 h-28 rounded overflow-hidden border border-border">
                       <img src={customImageProxyUrl} alt="" className="w-full h-full object-cover" />
