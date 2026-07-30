@@ -95,6 +95,13 @@ export const getPriceHistory = (id) => api.get(`/cards/${id}/price-history`)
 export const createCustomCard = (data) => api.post('/cards/custom', data)
 export const updateCustomCard = (cardId, data) => api.put(`/cards/custom/${cardId}`, data).then(r => r.data)
 export const updateCardCustomImage = (cardId, data) => api.put(`/cards/${cardId}/custom-image`, data).then(r => r.data)
+export const uploadCardCustomImage = (cardId, image) => {
+  const data = new FormData()
+  data.append('image', image)
+  return api.post(`/cards/${cardId}/custom-image/upload`, data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(r => r.data)
+}
 export const deleteCustomCard = (cardId) => api.delete(`/cards/custom/${cardId}`)
 export const getCustomCards = () => api.get('/cards/custom')
 

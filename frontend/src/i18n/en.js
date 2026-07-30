@@ -988,6 +988,8 @@ const en = {
     editCard: 'Edit card',
     customImageUrl: 'Custom image URL',
     customImageUrlDesc: 'Used only while TCGDex has no official card image. It will be ignored once an API image becomes available.',
+    uploadCustomImage: 'Upload image instead',
+    customImageUploaded: 'Custom image uploaded',
     saveCustomImage: 'Save image URL',
     clearCustomImage: 'Clear image URL',
     customImageSaved: 'Custom image URL saved',

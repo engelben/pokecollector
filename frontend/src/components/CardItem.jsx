@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { Plus, Heart, BookOpen, X, PenLine, Pencil, Trash2, ExternalLink } from 'lucide-react'
-import { addToCollection, addToWishlist, createCustomCard, updateCustomCard, updateCardCustomImage, deleteCustomCard, getSets, getPriceHistory } from '../api/client'
+import { addToCollection, addToWishlist, createCustomCard, updateCustomCard, updateCardCustomImage, uploadCardCustomImage, deleteCustomCard, getSets, getPriceHistory } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
@@ -559,7 +559,9 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
   const [variant, setVariant] = useState(() => getDefaultVariant(card))
   const [purchasePrice, setPurchasePrice] = useState('')
   const [resolvedCardId, setResolvedCardId] = useState(card.id)
-  const [customImageUrl, setCustomImageUrl] = useState(card.custom_image_url || '')
+  const [customImageUrl, setCustomImageUrl] = useState(
+    card.custom_image_url?.startsWith('uploaded://') ? '' : (card.custom_image_url || '')
+  )
   const [savedCustomImageUrl, setSavedCustomImageUrl] = useState(card.custom_image_url || '')
   const [customImageVersion, setCustomImageVersion] = useState(0)
   const customImageInputId = useId()
@@ -586,7 +588,7 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
 
   useEffect(() => {
     const nextUrl = card.custom_image_url || ''
-    setCustomImageUrl(nextUrl)
+    setCustomImageUrl(nextUrl.startsWith('uploaded://') ? '' : nextUrl)
     setSavedCustomImageUrl(nextUrl)
   }, [card.id, card.custom_image_url])
 
@@ -678,6 +680,17 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
       const detail = err?.response?.data?.detail || t('common.error')
       toast.error(detail)
     },
+  })
+  const customImageUploadMutation = useMutation({
+    mutationFn: (file) => uploadCardCustomImage(customImageCardId, file),
+    onSuccess: (updatedCard) => {
+      setCustomImageUrl('')
+      setSavedCustomImageUrl(updatedCard.custom_image_url || '')
+      setCustomImageVersion((version) => version + 1)
+      toast.success(t('card.customImageUploaded'))
+      invalidateCardState(queryClient)
+    },
+    onError: (err) => toast.error(err?.response?.data?.detail || t('common.error')),
   })
 
   const ALL_PRICE_KEYS = ['trend', 'avg', 'avg1', 'avg7', 'avg30', 'low']
@@ -944,6 +957,20 @@ export function CardModal({ card, onClose, onEdit, defaultLang = 'en', ownedItem
                   onChange={(e) => setCustomImageUrl(e.target.value)}
                   className="input w-full"
                 />
+                <label className="btn-ghost text-sm inline-flex cursor-pointer">
+                  {customImageUploadMutation.isPending ? t('common.saving') : t('card.uploadCustomImage')}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="sr-only"
+                    disabled={customImageUploadMutation.isPending}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0]
+                      if (file) customImageUploadMutation.mutate(file)
+                      event.target.value = ''
+                    }}
+                  />
+                </label>
                 {customImageProxyUrl && (
                   <div className="w-20 h-28 rounded overflow-hidden border border-border">
                     <img src={customImageProxyUrl} alt="" className="w-full h-full object-cover" />

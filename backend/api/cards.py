@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Integer, String, or_
 from sqlalchemy.exc import IntegrityError
@@ -26,10 +26,39 @@ from services.tcgdex_languages import english_fallback_languages, has_lang_suffi
 from services.text_search import accent_insensitive_contains
 from services.card_state import card_state_summaries
 import datetime
+import io
 import re
 from uuid import uuid4
 
+from PIL import Image, UnidentifiedImageError
+
 router = APIRouter()
+
+_MAX_CUSTOM_IMAGE_BYTES = 8 * 1024 * 1024
+_CUSTOM_IMAGE_CONTENT_TYPES = {
+    "image/gif": "GIF",
+    "image/jpeg": "JPEG",
+    "image/png": "PNG",
+    "image/webp": "WEBP",
+}
+
+
+def _custom_image_cache_keys(card_id: str) -> list[str]:
+    return [f"card:{card_id}:small:custom", f"card:{card_id}:large:custom"]
+
+
+def _editable_missing_image_card(db: Session, current_user: User, card_id: str) -> Card:
+    card = db.query(Card).filter(
+        Card.id == card_id,
+        visible_card_filter(db, current_user.id, "all"),
+    ).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    if card.is_custom:
+        raise HTTPException(status_code=400, detail="Use the custom card editor for manually created cards")
+    if card.images_small or card.images_large:
+        raise HTTPException(status_code=409, detail="This card already has an API image")
+    return card
 
 # Pattern: one or more letters, whitespace, one or more digits (e.g. "MEP 022", "SSP 136", "sv08 032")
 _CODE_NUMBER_RE = re.compile(r'^([A-Za-z]+\d*)\s+(\d+)$')
@@ -866,10 +895,7 @@ def update_card_custom_image(
     if card.is_custom:
         raise HTTPException(status_code=400, detail="Use the custom card editor for manually created cards")
 
-    custom_cache_keys = [
-        f"card:{card_id}:small:custom",
-        f"card:{card_id}:large:custom",
-    ]
+    custom_cache_keys = _custom_image_cache_keys(card_id)
     if card.images_small or card.images_large:
         if card.custom_image_url:
             card.custom_image_url = None
@@ -888,6 +914,45 @@ def update_card_custom_image(
     if card.custom_image_url != (image_url or None):
         db.query(ImageCache).filter(ImageCache.image_key.in_(custom_cache_keys)).delete(synchronize_session=False)
     card.custom_image_url = image_url or None
+    db.commit()
+    db.refresh(card)
+    return _card_to_dict(card)
+
+
+@router.post("/{card_id}/custom-image/upload", response_model=CardBase)
+async def upload_card_custom_image(
+    card_id: str,
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Store an uploaded fallback image directly in the persistent image cache."""
+    card = _editable_missing_image_card(db, current_user, card_id)
+    content_type = (image.content_type or "").lower()
+    expected_format = _CUSTOM_IMAGE_CONTENT_TYPES.get(content_type)
+    if not expected_format:
+        raise HTTPException(status_code=422, detail="Please upload a JPEG, PNG, WebP, or GIF image")
+
+    data = await image.read(_MAX_CUSTOM_IMAGE_BYTES + 1)
+    if len(data) > _MAX_CUSTOM_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Image must be 8 MB or smaller")
+    if not data:
+        raise HTTPException(status_code=422, detail="Uploaded image is empty")
+    try:
+        with Image.open(io.BytesIO(data)) as uploaded:
+            uploaded.verify()
+            if uploaded.format != expected_format:
+                raise HTTPException(status_code=422, detail="Uploaded file does not match its image type")
+    except (UnidentifiedImageError, OSError) as exc:
+        raise HTTPException(status_code=422, detail="Uploaded file is not a valid image") from exc
+
+    keys = _custom_image_cache_keys(card_id)
+    db.query(ImageCache).filter(ImageCache.image_key.in_(keys)).delete(synchronize_session=False)
+    for key in keys:
+        db.add(ImageCache(image_key=key, data=data, content_type=content_type))
+    # The marker makes the existing fallback selection survive restarts; the
+    # image endpoint finds the cache entry before it attempts any URL fetch.
+    card.custom_image_url = f"uploaded://card/{card_id}"
     db.commit()
     db.refresh(card)
     return _card_to_dict(card)
